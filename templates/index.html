@@ -303,7 +303,7 @@ body{font-family:var(--font);background:var(--black);color:var(--text);direction
 .login-wrap{position:relative;z-index:1;width:100%;max-width:420px;padding:1.5rem;animation:loginFade .5s ease;}
 @keyframes loginFade{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
 .login-logo-area{text-align:center;margin-bottom:2rem;}
-.login-logo-circle{width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--red),var(--red-dark));display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;box-shadow:0 0 40px rgba(200,16,46,0.4);overflow:hidden;border:2px solid rgba(200,16,46,0.5);font-size:2rem;font-weight:900;color:#fff;}
+.login-logo-circle{width:100px;height:100px;border-radius:50%;background:linear-gradient(135deg,var(--red),var(--red-dark));display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;box-shadow:0 0 40px rgba(200,16,46,0.4);overflow:hidden;border:3px solid rgba(200,16,46,0.5);font-size:2.2rem;font-weight:900;color:#fff;}
 .login-logo-circle img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
 .login-brand{font-family:var(--font-alt);font-size:1.8rem;font-weight:900;color:#fff;letter-spacing:1px;}
 .login-sub{font-size:.75rem;color:var(--text-muted);letter-spacing:3px;text-transform:uppercase;margin-top:3px;}
@@ -367,7 +367,7 @@ body{font-family:var(--font);background:var(--black);color:var(--text);direction
 .hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 80% at 80% 50%,rgba(200,16,46,0.2),transparent);}
 .hero::after{content:'فلورا';position:absolute;right:-2rem;top:50%;transform:translateY(-50%);font-family:var(--font-alt);font-size:9rem;font-weight:900;color:rgba(200,16,46,0.05);letter-spacing:-5px;line-height:1;pointer-events:none;white-space:nowrap;}
 .hero-inner{position:relative;z-index:1;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;}
-.hero-logo{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--red),var(--red-dark));display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:900;color:#fff;flex-shrink:0;box-shadow:0 0 30px rgba(200,16,46,0.45);border:2px solid rgba(200,16,46,0.4);overflow:hidden;}
+.hero-logo{width:100px;height:100px;border-radius:50%;background:linear-gradient(135deg,var(--red),var(--red-dark));display:flex;align-items:center;justify-content:center;font-size:2.2rem;font-weight:900;color:#fff;flex-shrink:0;box-shadow:0 0 40px rgba(200,16,46,0.45);border:3px solid rgba(200,16,46,0.4);overflow:hidden;}
 .hero-logo img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
 .hero-text h1{font-family:var(--font-alt);font-size:1.8rem;font-weight:900;line-height:1.1;color:var(--text);}
 .hero-text p{font-size:.82rem;color:var(--text-muted);margin-top:4px;}
@@ -2075,7 +2075,12 @@ async function saveLogo(){
   AppData.logo.sub=document.getElementById('logoSubInput').value||AppData.logo.sub;
   AppData.logo.letter=document.getElementById('logoLetterInput').value||AppData.logo.letter;
   if(pendingLogoImg){AppData.logo.img=pendingLogoImg;pendingLogoImg=null;}
-  await saveData('logo',AppData.logo);
+  // حفظ مباشر على Firebase مع انتظار التأكيد
+  showSaveIndicator('saving');
+  localStorage.setItem('flora:logo', JSON.stringify(AppData.logo));
+  const ok = await fbSet('flora/logo', AppData.logo);
+  if(!ok) await fbSet('flora/logo', AppData.logo); // retry
+  showSaveIndicator('saved');
   applyLogo();closeModal('logoModal');showToast('تم تحديث الشعار ✅','success');
 }
 function applyLogo(){
