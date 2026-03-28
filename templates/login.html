@@ -1,0 +1,113 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تسجيل الدخول - فلورا كوكتيل</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Cairo', sans-serif;
+            background: linear-gradient(135deg, #1a0505 0%, #8b0000 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .login-box {
+            background: #ffffff;
+            border-radius: 14px;
+            padding: 2.5rem 2rem;
+            width: 100%; 
+            max-width: 420px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            box-sizing: border-box;
+        }
+        .login-logo-large {
+            width: 90px; height: 90px;
+            background: #C8102E;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 1rem;
+            overflow: hidden;
+            border: 4px solid rgba(200,16,46,0.2);
+        }
+        .login-logo-large img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+        .login-box h2 { font-size: 1.5rem; font-weight: 900; margin-bottom: 0.3rem; color: #1A1A1A;}
+        .login-subtitle { font-size: 0.82rem; color: #5A5A5A; margin-bottom: 1.5rem; }
+        .form-group { text-align: right; margin-bottom: 1rem; }
+        .form-group label { display: block; font-size: 0.82rem; color: #5A5A5A; font-weight: 700; margin-bottom: 5px; }
+        .form-control { 
+            width: 100%; 
+            border: 1.5px solid #E8E8E8; 
+            border-radius: 8px; 
+            padding: 0.6rem 0.85rem; 
+            font-family: 'Cairo', sans-serif; 
+            font-size: 0.9rem; 
+            background: #F8F5F5; 
+            outline: none; 
+            box-sizing: border-box;
+        }
+        .form-control:focus { border-color: #C8102E; background: #ffffff; }
+        .btn-primary { 
+            background: #C8102E; 
+            color: #fff; 
+            width: 100%; 
+            border-radius: 8px; 
+            padding: 0.75rem; 
+            border: none; 
+            font-family: 'Cairo', sans-serif; 
+            font-size: 1rem; 
+            font-weight: 700; 
+            cursor: pointer; 
+            margin-top: 1rem;
+            transition: 0.3s;
+        }
+        .btn-primary:hover { background: #8B0000; }
+        .copyright-badge {
+            display: inline-flex; 
+            background: #FDECEA; 
+            color: #8B0000;
+            font-size: 0.72rem; 
+            font-weight: 700; 
+            padding: 3px 12px;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="login-box">
+    <div class="login-logo-large">
+        <img src="{% static 'logo.png.PNG' %}" alt="Flora">
+    </div>
+    
+    <h2>فلورا كوكتيل</h2>
+    <p class="login-subtitle">نظام الإدارة المتكامل</p>
+    
+    <form method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
+        
+        <div class="form-group">
+            <label>اسم المستخدم</label>
+            <input type="text" name="username" class="form-control" placeholder="أدخل اسم المستخدم" required>
+        </div>
+        <div class="form-group">
+            <label>كلمة المرور</label>
+            <input type="password" name="password" class="form-control" placeholder="••••••••" required>
+        </div>
+        
+        <button type="submit" class="btn-primary">🔐 تسجيل الدخول</button>
+    </form>
+
+    <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid #E8E8E8;">
+        <span class="copyright-badge">© 2026 فلورا كوكتيل — جميع الحقوق محفوظة</span>
+    </div>
+</div>
+
+</body>
+</html>
