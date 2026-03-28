@@ -1301,33 +1301,44 @@ async function fbGet(path) {
 }
 
 async function saveData(key, data) {
+  // 1. Save to localStorage immediately (instant, never fails)
+  try { localStorage.setItem('flora:' + key, JSON.stringify(data)); } catch(e) {}
+
+  // 2. Sync to Firebase
+  showSaveIndicator('saving');
   try {
-    // Save locally first (instant)
-    localStorage.setItem('flora:' + key, JSON.stringify(data));
-    showSaveIndicator('saving');
-    // Then sync to Firebase
     await fbSet('flora/' + key, data);
     showSaveIndicator('saved');
   } catch(e) {
-    console.warn('Firebase save failed:', key, e);
-    showSaveIndicator('error');
+    console.warn('Firebase sync failed for', key, e);
+    showSaveIndicator('local');
   }
 }
 
 async function loadData(key) {
   try {
-    // Try Firebase first
-    const data = await fbGet('flora/' + key);
-    if (data !== null) {
-      localStorage.setItem('flora:' + key, JSON.stringify(data));
-      return data;
+    // Try Firebase first — but merge with localStorage to ensure freshness
+    const [firebaseData, localRaw] = await Promise.all([
+      fbGet('flora/' + key).catch(() => null),
+      Promise.resolve(localStorage.getItem('flora:' + key))
+    ]);
+
+    const localData = localRaw ? JSON.parse(localRaw) : null;
+
+    if (firebaseData !== null && localData !== null) {
+      // Both exist — use Firebase (shared source of truth across devices)
+      return firebaseData;
     }
-  } catch(e) {}
-  // Fallback to localStorage
-  try {
-    const raw = localStorage.getItem('flora:' + key);
-    return raw ? JSON.parse(raw) : null;
-  } catch(e) { return null; }
+    if (firebaseData !== null) return firebaseData;
+    if (localData !== null) return localData;
+    return null;
+  } catch(e) {
+    // Firebase failed — use localStorage
+    try {
+      const raw = localStorage.getItem('flora:' + key);
+      return raw ? JSON.parse(raw) : null;
+    } catch(e2) { return null; }
+  }
 }
 
 async function saveUsers(users) {
@@ -1352,9 +1363,8 @@ async function loadUsers() {
 }
 
 async function saveAll() {
-  const saves = STORAGE_KEYS.map(key => saveData(key, AppData[key]));
-  saves.push(saveUsers(Auth.users));
-  await Promise.all(saves);
+  STORAGE_KEYS.forEach(key => saveData(key, AppData[key]));
+  saveUsers(Auth.users);
 }
 
 function showSaveIndicator(status) {
@@ -1367,6 +1377,10 @@ function showSaveIndicator(status) {
     el.innerHTML = '<span style="color:var(--green);">☁️ تم الحفظ</span>';
     clearTimeout(el._hideTimer);
     el._hideTimer = setTimeout(() => { el.style.display='none'; }, 2000);
+  } else if (status === 'local') {
+    el.innerHTML = '<span style="color:var(--orange);">💾 محفوظ محلياً</span>';
+    clearTimeout(el._hideTimer);
+    el._hideTimer = setTimeout(() => { el.style.display='none'; }, 3000);
   } else {
     el.innerHTML = '<span style="color:#ff6b6b;">⚠️ فشل الحفظ</span>';
     clearTimeout(el._hideTimer);
@@ -1382,7 +1396,7 @@ async function loadAll() {
       Auth.users = savedUsers;
     } else {
       Auth.users = JSON.parse(JSON.stringify(DEFAULT_USERS));
-      await saveUsers(Auth.users);
+      saveUsers(Auth.users);
     }
 
     // Load all AppData keys from Firebase
@@ -1613,7 +1627,7 @@ async function submitForgotPassword() {
   if(!user){showToast('اسم المستخدم غير موجود','warning');return;}
   if(user.role==='admin'){showToast('لا يمكن إرسال طلب لكلمة مرور المدير','warning');return;}
   AppData.pwResetRequests.push({id:Date.now(),username,userName:user.name,msg:msg||'لا توجد رسالة',time:new Date().toLocaleString('ar')});
-  saveData('pwResetRequests', AppData.pwResetRequests);
+  await saveData('pwResetRequests', AppData.pwResetRequests);
   updateAlertBadge();
   closeForgotPwModal();
   document.getElementById('fpUser').value=''; document.getElementById('fpMsg').value='';
@@ -1626,13 +1640,13 @@ async function resetUserPasswordFromRequest(reqId, userId) {
   const user = Auth.users.find(u=>u.username===userId);
   if(user){user.password=newPw;saveUsers(Auth.users);showToast('تم إعادة تعيين كلمة المرور ✅','success');}
   AppData.pwResetRequests = AppData.pwResetRequests.filter(r=>r.id!==reqId);
-  saveData('pwResetRequests', AppData.pwResetRequests);
+  await saveData('pwResetRequests', AppData.pwResetRequests);
   updateAlertBadge(); renderAlerts();
 }
 
 async function dismissPwRequest(id) {
   AppData.pwResetRequests = AppData.pwResetRequests.filter(r=>r.id!==id);
-  saveData('pwResetRequests', AppData.pwResetRequests);
+  await saveData('pwResetRequests', AppData.pwResetRequests);
   updateAlertBadge(); renderAlerts();
 }
 
@@ -1711,7 +1725,7 @@ async function commitSales() {
     });
   });
   if(!anyAdded){showToast('لم يتم إدخال أي كميات','warning');return;}
-  saveData('salesLog', AppData.salesLog);
+  await saveData('salesLog', AppData.salesLog);
   clearSaleQtys();
   renderSalesLog();
   renderDashboard();
@@ -1732,7 +1746,7 @@ function clearSaleQtys() {
 async function clearAllSales() {
   confirmAction('مسح كل المبيعات','هل أنت متأكد؟ لن يمكن التراجع.','⚠️', async()=>{
     AppData.salesLog = [];
-    saveData('salesLog', AppData.salesLog);
+    await saveData('salesLog', AppData.salesLog);
     renderSalesLog(); renderDashboard(); updateAlertBadge();
     showToast('تم مسح سجل المبيعات','success');
   });
@@ -1741,7 +1755,7 @@ async function clearAllSales() {
 async function deleteSaleEntry(id) {
   confirmAction('حذف السجل','حذف هذا السجل؟','🗑️', async()=>{
     AppData.salesLog = AppData.salesLog.filter(s=>s.id!==id);
-    saveData('salesLog', AppData.salesLog);
+    await saveData('salesLog', AppData.salesLog);
     renderSalesLog(); renderDashboard(); updateAlertBadge();
     showToast('تم الحذف','success');
   });
@@ -2024,14 +2038,14 @@ async function sendChatMessage(){
   const u = Auth.currentUser;
   AppData.chatMessages.push({id:Date.now(),userId:u.id,userName:u.name,userAvatar:u.avatar,text,time:new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'})});
   input.value = '';
-  saveData('chatMessages', AppData.chatMessages);
+  await saveData('chatMessages', AppData.chatMessages);
   renderChatMessages();
 }
 
 async function deleteChatMsg(id){
   if(!Auth.isAdmin()) return;
   AppData.chatMessages = AppData.chatMessages.filter(m=>m.id!==id);
-  saveData('chatMessages', AppData.chatMessages);
+  await saveData('chatMessages', AppData.chatMessages);
   renderChatMessages();
   showToast('تم الحذف','success');
 }
@@ -2055,7 +2069,7 @@ async function saveLogo(){
   AppData.logo.sub=document.getElementById('logoSubInput').value||AppData.logo.sub;
   AppData.logo.letter=document.getElementById('logoLetterInput').value||AppData.logo.letter;
   if(pendingLogoImg){AppData.logo.img=pendingLogoImg;pendingLogoImg=null;}
-  saveData('logo',AppData.logo);
+  await saveData('logo',AppData.logo);
   applyLogo();closeModal('logoModal');showToast('تم تحديث الشعار ✅','success');
 }
 function applyLogo(){
@@ -2270,7 +2284,7 @@ function editInvoiceFromReport(id) {
 async function deleteInvoice(id){
   confirmAction('حذف الفاتورة',`حذف الفاتورة ${id}؟`,'🗑️', async()=>{
     AppData.invoices=AppData.invoices.filter(i=>i.id!==id);
-    saveData('invoices', AppData.invoices);
+    await saveData('invoices', AppData.invoices);
     renderPurchasesTable();renderDashboard();updateAlertBadge();
     showToast('تم الحذف','success');
   });
@@ -2321,7 +2335,7 @@ async function saveInvoice(){
     AppData.invoices.push({id,supplier,date,items,total});
     showToast('تم حفظ الفاتورة ✅','success');
   }
-  saveData('invoices', AppData.invoices);
+  await saveData('invoices', AppData.invoices);
   closeModal('invoiceModal');renderPurchasesTable();renderDashboard();updateAlertBadge();
   // Also refresh reports if open
   const activePanel = document.querySelector('.panel.active')?.id;
@@ -2359,7 +2373,7 @@ async function deleteSupplier(id){
   const s=AppData.suppliers.find(x=>x.id===id);
   confirmAction('حذف المورّد',`حذف "${s.name}"؟`,'🗑️', async()=>{
     AppData.suppliers=AppData.suppliers.filter(x=>x.id!==id);
-    saveData('suppliers', AppData.suppliers);
+    await saveData('suppliers', AppData.suppliers);
     renderSuppliers();showToast('تم الحذف','success');
   });
 }
@@ -2384,8 +2398,8 @@ async function saveSupplierEdit(id){
   s.phone=document.getElementById('edit-sup-phone').value;
   s.notes=document.getElementById('edit-sup-notes').value;
   AppData.invoices.forEach(inv=>{if(inv.supplier===old)inv.supplier=s.name;});
-  saveData('suppliers', AppData.suppliers);
-  saveData('invoices', AppData.invoices);
+  await saveData('suppliers', AppData.suppliers);
+  await saveData('invoices', AppData.invoices);
   closeModal('defModal');renderSuppliers();showToast('تم التحديث ✅','success');
 }
 
@@ -2497,7 +2511,7 @@ async function saveMaterialEdit(id){
   mat.unit=document.getElementById('edit-mat-unit').value;
   mat.minStock=parseFloat(document.getElementById('edit-mat-min').value)||0;
   mat.openingQty=parseFloat(document.getElementById('edit-mat-opening').value)||0;
-  saveData('materials', AppData.materials);
+  await saveData('materials', AppData.materials);
   showToast('تم الحفظ ✅','success');closeModal('materialModal');renderMaterials();updateAlertBadge();
 }
 
@@ -2534,7 +2548,7 @@ async function deleteProduct(id){
   const p=AppData.products.find(x=>x.id===id);
   confirmAction('حذف الصنف',`حذف "${p.name}"؟`,'🗑️', async()=>{
     AppData.products=AppData.products.filter(x=>x.id!==id);
-    saveData('products', AppData.products);
+    await saveData('products', AppData.products);
     renderDefProducts();showToast('تم الحذف','success');
   });
 }
@@ -2607,7 +2621,7 @@ async function saveProductDef(id){
     const matId=sel?.value;const qty=parseFloat(inputs[0]?.value)||0;const unit=inputs[1]?.value||'';
     if(matId&&qty>0)p.rawMaterials.push({matId,qty,unit});
   });
-  saveData('products', AppData.products);
+  await saveData('products', AppData.products);
   showToast('تم حفظ الصنف ✅','success');closeModal('productDefModal');renderDefProducts();
 }
 
@@ -2629,7 +2643,7 @@ async function deleteMaterial(id){
   const m=AppData.materials.find(x=>x.id===id);
   confirmAction('حذف المادة',`حذف "${m.name}"؟`,'🗑️', async()=>{
     AppData.materials=AppData.materials.filter(x=>x.id!==id);
-    saveData('materials', AppData.materials);
+    await saveData('materials', AppData.materials);
     renderDefMaterials();renderMaterials();showToast('تم الحذف','success');
   });
 }
@@ -2714,7 +2728,7 @@ async function saveNewProduct(){
     if(matId&&qty>0)rawMaterials.push({matId,qty,unit});
   });
   AppData.products.push({id,name,price:parseFloat(document.getElementById('pdef-price').value)||0,cat:document.getElementById('pdef-cat').value,worker:document.getElementById('pdef-worker').value,hrs:parseFloat(document.getElementById('pdef-hrs').value)||0,qty:parseInt(document.getElementById('pdef-qty').value)||0,rawMaterials});
-  saveData('products', AppData.products);
+  await saveData('products', AppData.products);
   closeModal('productDefModal');renderDefProducts();showToast('تمت إضافة الصنف ✅','success');
 }
 
@@ -2724,7 +2738,7 @@ async function saveNewMaterial(){
   if(!id||!name){showToast('يرجى ملء الحقول','warning');return;}
   if(AppData.materials.find(m=>m.id===id)){showToast('الرقم موجود','warning');return;}
   AppData.materials.push({id,name,unit:document.getElementById('new-mat-unit').value||'كيلو',openingQty:parseFloat(document.getElementById('new-mat-opening').value)||0,minStock:parseInt(document.getElementById('new-mat-min').value)||100});
-  saveData('materials', AppData.materials);
+  await saveData('materials', AppData.materials);
   showToast('تمت الإضافة ✅','success');closeModal('defModal');renderDefMaterials();
 }
 
@@ -2733,7 +2747,7 @@ async function saveNewSupplier(){
   if(!name){showToast('يرجى إدخال الاسم','warning');return;}
   const id='S'+(AppData.suppliers.length+1);
   AppData.suppliers.push({id,name,phone:document.getElementById('new-sup-phone').value,notes:document.getElementById('new-sup-notes').value});
-  saveData('suppliers', AppData.suppliers);
+  await saveData('suppliers', AppData.suppliers);
   showToast('تمت الإضافة ✅','success');closeModal('defModal');renderDefSuppliers();
 }
 
@@ -2763,39 +2777,39 @@ function openCostModal(title,body){document.getElementById('costItemModalTitle')
 
 function openAddDirectCostModal(){openCostModal('إضافة تكلفة مباشرة',`<div class="form-group"><label>الرقم</label><input type="text" class="form-control" id="ci-id"></div><div class="form-group"><label>الاسم</label><input type="text" class="form-control" id="ci-name"></div><div class="form-group"><label>النوع</label><input type="text" class="form-control" id="ci-type" value="مادة خام مباشرة"></div><div class="form-grid"><div class="form-group"><label>رصيد البداية ₪</label><input type="number" class="form-control" id="ci-bal" value="0"></div><div class="form-group"><label>كمية البداية</label><input type="number" class="form-control" id="ci-qty" value="0"></div></div><div style="display:flex;gap:.75rem;margin-top:1rem;justify-content:flex-end;"><button class="btn btn-ghost" onclick="closeModal('costItemModal')">إلغاء</button><button class="btn btn-primary" onclick="saveDirectCost()">💾 إضافة</button></div>`);}
 
-async function saveDirectCost(){const id=document.getElementById('ci-id').value.trim(),name=document.getElementById('ci-name').value.trim();if(!id||!name){showToast('يرجى ملء الحقول','warning');return;}AppData.directMaterials.push({id,name,type:document.getElementById('ci-type').value,openingBalance:parseFloat(document.getElementById('ci-bal').value)||0,openingQty:parseFloat(document.getElementById('ci-qty').value)||0});saveData('directMaterials',AppData.directMaterials);closeModal('costItemModal');renderCosts();showToast('تمت الإضافة ✅','success');}
+async function saveDirectCost(){const id=document.getElementById('ci-id').value.trim(),name=document.getElementById('ci-name').value.trim();if(!id||!name){showToast('يرجى ملء الحقول','warning');return;}AppData.directMaterials.push({id,name,type:document.getElementById('ci-type').value,openingBalance:parseFloat(document.getElementById('ci-bal').value)||0,openingQty:parseFloat(document.getElementById('ci-qty').value)||0});await saveData('directMaterials',AppData.directMaterials);closeModal('costItemModal');renderCosts();showToast('تمت الإضافة ✅','success');}
 
 function editDirectCost(i){const c=AppData.directMaterials[i];openCostModal('تعديل التكلفة المباشرة',`<div class="form-group"><label>الاسم</label><input type="text" class="form-control" id="ci-name" value="${c.name}"></div><div class="form-group"><label>النوع</label><input type="text" class="form-control" id="ci-type" value="${c.type}"></div><div class="form-grid"><div class="form-group"><label>رصيد البداية ₪</label><input type="number" class="form-control" id="ci-bal" value="${c.openingBalance}"></div><div class="form-group"><label>كمية البداية</label><input type="number" class="form-control" id="ci-qty" value="${c.openingQty}"></div></div><div style="display:flex;gap:.75rem;margin-top:1rem;justify-content:flex-end;"><button class="btn btn-ghost" onclick="closeModal('costItemModal')">إلغاء</button><button class="btn btn-primary" onclick="updateDirectCost(${i})">💾 حفظ</button></div>`);}
 
-async function updateDirectCost(i){AppData.directMaterials[i].name=document.getElementById('ci-name').value;AppData.directMaterials[i].type=document.getElementById('ci-type').value;AppData.directMaterials[i].openingBalance=parseFloat(document.getElementById('ci-bal').value)||0;AppData.directMaterials[i].openingQty=parseFloat(document.getElementById('ci-qty').value)||0;saveData('directMaterials',AppData.directMaterials);closeModal('costItemModal');renderCosts();showToast('تم التحديث ✅','success');}
+async function updateDirectCost(i){AppData.directMaterials[i].name=document.getElementById('ci-name').value;AppData.directMaterials[i].type=document.getElementById('ci-type').value;AppData.directMaterials[i].openingBalance=parseFloat(document.getElementById('ci-bal').value)||0;AppData.directMaterials[i].openingQty=parseFloat(document.getElementById('ci-qty').value)||0;await saveData('directMaterials',AppData.directMaterials);closeModal('costItemModal');renderCosts();showToast('تم التحديث ✅','success');}
 
-async function deleteDirectCost(i){confirmAction('حذف','حذف هذا العنصر؟','🗑️',async()=>{AppData.directMaterials.splice(i,1);saveData('directMaterials',AppData.directMaterials);renderCosts();showToast('تم الحذف','success');});}
+async function deleteDirectCost(i){confirmAction('حذف','حذف هذا العنصر؟','🗑️',async()=>{AppData.directMaterials.splice(i,1);await saveData('directMaterials',AppData.directMaterials);renderCosts();showToast('تم الحذف','success');});}
 
 function openAddIndirectModal(type){const isVar=type==='var';openCostModal(isVar?'إضافة تكلفة متغيرة':'إضافة تكلفة ثابتة',`<div class="form-group"><label>الرقم</label><input type="text" class="form-control" id="ci-id"></div><div class="form-group"><label>الاسم</label><input type="text" class="form-control" id="ci-name"></div><div class="form-group"><label>${isVar?'التكلفة/وحدة ₪':'القيمة ₪'}</label><input type="number" class="form-control" id="ci-val" step="0.01" value="0"></div><div style="display:flex;gap:.75rem;margin-top:1rem;justify-content:flex-end;"><button class="btn btn-ghost" onclick="closeModal('costItemModal')">إلغاء</button><button class="btn btn-primary" onclick="saveIndirectItem('${type}')">💾 إضافة</button></div>`);}
 
-async function saveIndirectItem(type){const id=document.getElementById('ci-id').value.trim(),name=document.getElementById('ci-name').value.trim(),val=parseFloat(document.getElementById('ci-val').value)||0;if(!id||!name){showToast('يرجى ملء الحقول','warning');return;}if(type==='var')AppData.indirectVar.push({id,name,unitCost:val});else AppData.indirectFixed.push({id,name,value:val});const key=type==='var'?'indirectVar':'indirectFixed';saveData(key,type==='var'?AppData.indirectVar:AppData.indirectFixed);closeModal('costItemModal');renderCosts();showToast('تمت الإضافة ✅','success');}
+async function saveIndirectItem(type){const id=document.getElementById('ci-id').value.trim(),name=document.getElementById('ci-name').value.trim(),val=parseFloat(document.getElementById('ci-val').value)||0;if(!id||!name){showToast('يرجى ملء الحقول','warning');return;}if(type==='var')AppData.indirectVar.push({id,name,unitCost:val});else AppData.indirectFixed.push({id,name,value:val});const key=type==='var'?'indirectVar':'indirectFixed';await saveData(key,type==='var'?AppData.indirectVar:AppData.indirectFixed);closeModal('costItemModal');renderCosts();showToast('تمت الإضافة ✅','success');}
 
 function editIndirectItem(type,i){const arr=type==='var'?AppData.indirectVar:AppData.indirectFixed,c=arr[i];openCostModal('تعديل',`<div class="form-group"><label>الاسم</label><input type="text" class="form-control" id="ci-name" value="${c.name}"></div><div class="form-group"><label>${type==='var'?'التكلفة/وحدة ₪':'القيمة ₪'}</label><input type="number" class="form-control" id="ci-val" step="0.01" value="${type==='var'?c.unitCost:c.value}"></div><div style="display:flex;gap:.75rem;margin-top:1rem;justify-content:flex-end;"><button class="btn btn-ghost" onclick="closeModal('costItemModal')">إلغاء</button><button class="btn btn-primary" onclick="updateIndirectItem('${type}',${i})">💾 حفظ</button></div>`);}
 
-async function updateIndirectItem(type,i){const arr=type==='var'?AppData.indirectVar:AppData.indirectFixed;arr[i].name=document.getElementById('ci-name').value;const val=parseFloat(document.getElementById('ci-val').value)||0;if(type==='var')arr[i].unitCost=val;else arr[i].value=val;saveData(type==='var'?'indirectVar':'indirectFixed',arr);closeModal('costItemModal');renderCosts();showToast('تم التحديث ✅','success');}
+async function updateIndirectItem(type,i){const arr=type==='var'?AppData.indirectVar:AppData.indirectFixed;arr[i].name=document.getElementById('ci-name').value;const val=parseFloat(document.getElementById('ci-val').value)||0;if(type==='var')arr[i].unitCost=val;else arr[i].value=val;await saveData(type==='var'?'indirectVar':'indirectFixed',arr);closeModal('costItemModal');renderCosts();showToast('تم التحديث ✅','success');}
 
-async function deleteIndirectItem(type,i){confirmAction('حذف','حذف هذا العنصر؟','🗑️',async()=>{if(type==='var')AppData.indirectVar.splice(i,1);else AppData.indirectFixed.splice(i,1);saveData(type==='var'?'indirectVar':'indirectFixed',type==='var'?AppData.indirectVar:AppData.indirectFixed);renderCosts();showToast('تم الحذف','success');});}
+async function deleteIndirectItem(type,i){confirmAction('حذف','حذف هذا العنصر؟','🗑️',async()=>{if(type==='var')AppData.indirectVar.splice(i,1);else AppData.indirectFixed.splice(i,1);await saveData(type==='var'?'indirectVar':'indirectFixed',type==='var'?AppData.indirectVar:AppData.indirectFixed);renderCosts();showToast('تم الحذف','success');});}
 
 function openAddLaborModal(ei=null){const isE=ei!==null,l=isE?AppData.labor[ei]:null;openCostModal(isE?'تعديل بيانات العامل':'إضافة عامل',`${!isE?`<div class="form-group"><label>الرقم</label><input type="text" class="form-control" id="ci-id"></div>`:''}<div class="form-group"><label>اسم العامل</label><input type="text" class="form-control" id="ci-name" value="${l?l.name:''}"></div><div class="form-group"><label>سعر الساعة ₪</label><input type="number" class="form-control" id="ci-rate" step="0.5" value="${l?l.hourlyRate:10}"></div><div style="display:flex;gap:.75rem;margin-top:1rem;justify-content:flex-end;"><button class="btn btn-ghost" onclick="closeModal('costItemModal')">إلغاء</button><button class="btn btn-primary" onclick="${isE?`updateLaborEntry(${ei})`:'saveNewLabor()'}">💾 ${isE?'حفظ':'إضافة'}</button></div>`);}
 
-async function saveNewLabor(){const id=document.getElementById('ci-id').value.trim(),name=document.getElementById('ci-name').value.trim();if(!id||!name){showToast('يرجى ملء الحقول','warning');return;}AppData.labor.push({id,name,hourlyRate:parseFloat(document.getElementById('ci-rate').value)||10});saveData('labor',AppData.labor);closeModal('costItemModal');renderCosts();showToast('تمت الإضافة ✅','success');}
+async function saveNewLabor(){const id=document.getElementById('ci-id').value.trim(),name=document.getElementById('ci-name').value.trim();if(!id||!name){showToast('يرجى ملء الحقول','warning');return;}AppData.labor.push({id,name,hourlyRate:parseFloat(document.getElementById('ci-rate').value)||10});await saveData('labor',AppData.labor);closeModal('costItemModal');renderCosts();showToast('تمت الإضافة ✅','success');}
 
-async function updateLaborEntry(i){AppData.labor[i].name=document.getElementById('ci-name').value;AppData.labor[i].hourlyRate=parseFloat(document.getElementById('ci-rate').value)||10;saveData('labor',AppData.labor);closeModal('costItemModal');renderCosts();showToast('تم التحديث ✅','success');}
+async function updateLaborEntry(i){AppData.labor[i].name=document.getElementById('ci-name').value;AppData.labor[i].hourlyRate=parseFloat(document.getElementById('ci-rate').value)||10;await saveData('labor',AppData.labor);closeModal('costItemModal');renderCosts();showToast('تم التحديث ✅','success');}
 
-async function deleteLaborEntry(i){confirmAction('حذف العامل',`حذف "${AppData.labor[i].name}"؟`,'🗑️',async()=>{AppData.labor.splice(i,1);saveData('labor',AppData.labor);renderCosts();showToast('تم الحذف','success');});}
+async function deleteLaborEntry(i){confirmAction('حذف العامل',`حذف "${AppData.labor[i].name}"؟`,'🗑️',async()=>{AppData.labor.splice(i,1);await saveData('labor',AppData.labor);renderCosts();showToast('تم الحذف','success');});}
 
 function openAddDeprecModal(ei=null){const isE=ei!==null,l=isE?AppData.depreciationLines[ei]:null;openCostModal(isE?'تعديل خط الإهلاك':'إضافة خط إنتاج',`<div class="form-group"><label>اسم الخط</label><input type="text" class="form-control" id="ci-name" value="${l?l.name:'خط جديد'}"></div><div class="form-group"><label>قيمة الأصل ₪</label><input type="number" class="form-control" id="ci-val" value="${l?l.value:0}"></div><div class="form-group"><label>العمر (سنة)</label><input type="number" class="form-control" id="ci-years" value="${l?l.years:10}"></div><div style="display:flex;gap:.75rem;margin-top:1rem;justify-content:flex-end;"><button class="btn btn-ghost" onclick="closeModal('costItemModal')">إلغاء</button><button class="btn btn-primary" onclick="${isE?`updateDeprecEntry(${ei})`:'saveDeprecEntry()'}">💾 ${isE?'حفظ':'إضافة'}</button></div>`);}
 
-async function saveDeprecEntry(){AppData.depreciationLines.push({id:'DL'+(AppData.depreciationLines.length+1),name:document.getElementById('ci-name').value,value:parseFloat(document.getElementById('ci-val').value)||0,years:parseInt(document.getElementById('ci-years').value)||10});saveData('depreciationLines',AppData.depreciationLines);closeModal('costItemModal');renderCosts();showToast('تمت الإضافة ✅','success');}
+async function saveDeprecEntry(){AppData.depreciationLines.push({id:'DL'+(AppData.depreciationLines.length+1),name:document.getElementById('ci-name').value,value:parseFloat(document.getElementById('ci-val').value)||0,years:parseInt(document.getElementById('ci-years').value)||10});await saveData('depreciationLines',AppData.depreciationLines);closeModal('costItemModal');renderCosts();showToast('تمت الإضافة ✅','success');}
 
-async function updateDeprecEntry(i){AppData.depreciationLines[i].name=document.getElementById('ci-name').value;AppData.depreciationLines[i].value=parseFloat(document.getElementById('ci-val').value)||0;AppData.depreciationLines[i].years=parseInt(document.getElementById('ci-years').value)||10;saveData('depreciationLines',AppData.depreciationLines);closeModal('costItemModal');renderCosts();showToast('تم التحديث ✅','success');}
+async function updateDeprecEntry(i){AppData.depreciationLines[i].name=document.getElementById('ci-name').value;AppData.depreciationLines[i].value=parseFloat(document.getElementById('ci-val').value)||0;AppData.depreciationLines[i].years=parseInt(document.getElementById('ci-years').value)||10;await saveData('depreciationLines',AppData.depreciationLines);closeModal('costItemModal');renderCosts();showToast('تم التحديث ✅','success');}
 
-async function deleteDeprecEntry(i){confirmAction('حذف خط الإهلاك',`حذف "${AppData.depreciationLines[i].name}"؟`,'🗑️',async()=>{AppData.depreciationLines.splice(i,1);saveData('depreciationLines',AppData.depreciationLines);renderCosts();showToast('تم الحذف','success');});}
+async function deleteDeprecEntry(i){confirmAction('حذف خط الإهلاك',`حذف "${AppData.depreciationLines[i].name}"؟`,'🗑️',async()=>{AppData.depreciationLines.splice(i,1);await saveData('depreciationLines',AppData.depreciationLines);renderCosts();showToast('تم الحذف','success');});}
 
 /* ═══ DISTRIBUTION ALLOCATION RENDER ═══ */
 function renderDistAllocation() {
@@ -3419,7 +3433,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 /* Save all data when tab loses focus or user navigates away */
-document.addEventListener('visibilitychange', () => {
+document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'hidden' && Auth.currentUser) {
     saveAll();
     saveUsers(Auth.users);
