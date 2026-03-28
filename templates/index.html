@@ -773,6 +773,11 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
       <div class="field"><label>اسم المستخدم</label><input type="text" class="form-control" id="loginUser" placeholder="أدخل اسم المستخدم" autocomplete="username"></div>
       <div class="field"><label>كلمة المرور</label><input type="password" class="form-control" id="loginPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <div class="login-error" id="loginError">❌ اسم المستخدم أو كلمة المرور غير صحيحة</div>
+      <div style="display:flex;align-items:center;gap:8px;margin:.75rem 0 .25rem;direction:rtl;">
+        <input type="checkbox" id="keepLoggedIn" style="accent-color:var(--red);width:16px;height:16px;cursor:pointer;">
+        <label for="keepLoggedIn" style="font-size:.82rem;color:var(--text-muted);cursor:pointer;">ابقني متصلاً</label>
+        <span style="font-size:.72rem;color:var(--text-dim);">(30 دقيقة)</span>
+      </div>
       <button class="login-btn" onclick="doLogin()">🔐 تسجيل الدخول</button>
       <div class="login-footer"><a onclick="showForgotPwModal()">نسيت كلمة المرور؟</a> &nbsp;|&nbsp; © 2026 فلورا كوكتيل</div>
     </div>
@@ -1592,9 +1597,12 @@ async function loadAll() {
     if (!AppData.suppliers || AppData.suppliers.length === 0) await seedDefaults();
   }
 
-  // Show login
+  // Try restore session before showing login
   document.getElementById('loadingScreen').style.display = 'none';
-  document.getElementById('loginScreen').style.display = 'flex';
+  const restored = await tryRestoreSession();
+  if (!restored) {
+    document.getElementById('loginScreen').style.display = 'flex';
+  }
 }
 
 async function seedDefaults() {
@@ -1733,27 +1741,74 @@ function getAllocatedFixedForProduct(pId, soldQty) {
 /* ════════════════════════════════════════
    LOGIN / LOGOUT
 ════════════════════════════════════════ */
+const INACTIVITY_LIMIT = 30 * 60 * 1000; // 30 دقيقة
+let inactivityTimer = null;
+
+function resetInactivityTimer() {
+  if (!Auth.currentUser) return;
+  clearTimeout(inactivityTimer);
+  const keepLoggedIn = sessionStorage.getItem('flora:keepLoggedIn') === 'true';
+  if (keepLoggedIn) {
+    inactivityTimer = setTimeout(() => {
+      showToast('⏰ انتهت جلستك بسبب عدم النشاط', 'warning');
+      setTimeout(() => doLogoutSilent(), 2000);
+    }, INACTIVITY_LIMIT);
+  }
+}
+
+function doLogoutSilent() {
+  Auth.currentUser = null;
+  clearTimeout(inactivityTimer);
+  stopChatAutoRefresh();
+  stopAutoSaveSync();
+  sessionStorage.removeItem('flora:keepLoggedIn');
+  sessionStorage.removeItem('flora:session');
+  document.getElementById('mobileNav').style.display='none';
+  document.getElementById('mobileMoreMenu').style.display='none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('mainTopbar').style.display = 'none';
+  document.getElementById('mainFooter').style.display = 'none';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginUser').value = '';
+  document.getElementById('loginError').style.display = 'none';
+  closeProfileMenu();
+}
+
+function startSession(user) {
+  Auth.currentUser = user;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainTopbar').style.display = 'flex';
+  document.getElementById('mainFooter').style.display = 'block';
+  document.getElementById('footerYear').textContent = new Date().getFullYear();
+  applyPermissionsUI();
+  renderDashboard();
+  updateAlertBadge();
+  updateProfileUI();
+  applyLogo();
+  document.getElementById('saleDateInput').value = new Date().toISOString().split('T')[0];
+  saveAll();
+  startChatAutoRefresh();
+  startAutoSaveSync();
+  showMobileNav();
+  resetInactivityTimer();
+  showToast('مرحباً ' + user.name + '! 🌹', 'success');
+}
+
 function doLogin() {
   const u = document.getElementById('loginUser').value.trim();
   const p = document.getElementById('loginPass').value;
+  const keepLoggedIn = document.getElementById('keepLoggedIn')?.checked || false;
   const user = Auth.users.find(x=>x.username===u && x.password===p);
   if (user) {
-    Auth.currentUser = user;
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('mainTopbar').style.display = 'flex';
-    document.getElementById('mainFooter').style.display = 'block';
-    document.getElementById('footerYear').textContent = new Date().getFullYear();
-    applyPermissionsUI();
-    renderDashboard();
-    updateAlertBadge();
-    updateProfileUI();
-    applyLogo();
-    document.getElementById('saleDateInput').value = new Date().toISOString().split('T')[0];
-    saveAll(); // ensure all data is written to shared storage on every login
-    startChatAutoRefresh();
-    startAutoSaveSync();
-    showMobileNav();
-    showToast('مرحباً ' + user.name + '! 🌹', 'success');
+    if (keepLoggedIn) {
+      // احفظ الجلسة
+      sessionStorage.setItem('flora:keepLoggedIn', 'true');
+      sessionStorage.setItem('flora:session', JSON.stringify({id: user.id, time: Date.now()}));
+    } else {
+      sessionStorage.removeItem('flora:keepLoggedIn');
+      sessionStorage.removeItem('flora:session');
+    }
+    startSession(user);
   } else {
     document.getElementById('loginError').style.display = 'block';
     document.getElementById('loginPass').value = '';
@@ -1763,8 +1818,11 @@ function doLogin() {
 function doLogout() {
   confirmAction('تسجيل الخروج','هل تريد تسجيل الخروج؟','🚪',()=>{
     Auth.currentUser = null;
+    clearTimeout(inactivityTimer);
     stopChatAutoRefresh();
     stopAutoSaveSync();
+    sessionStorage.removeItem('flora:keepLoggedIn');
+    sessionStorage.removeItem('flora:session');
     document.getElementById('mobileNav').style.display='none';
     document.getElementById('mobileMoreMenu').style.display='none';
     document.getElementById('loginScreen').style.display = 'flex';
@@ -3733,6 +3791,41 @@ window.addEventListener('DOMContentLoaded', () => {
   applyStoredTheme();
   loadAll();
 });
+
+/* تتبع النشاط — تجديد مؤقت عدم النشاط */
+['click','keydown','touchstart','scroll'].forEach(evt => {
+  document.addEventListener(evt, () => {
+    if (Auth.currentUser && sessionStorage.getItem('flora:keepLoggedIn') === 'true') {
+      resetInactivityTimer();
+      // تحديث وقت آخر نشاط
+      const session = JSON.parse(sessionStorage.getItem('flora:session') || '{}');
+      session.time = Date.now();
+      sessionStorage.setItem('flora:session', JSON.stringify(session));
+    }
+  }, { passive: true });
+});
+
+/* استعادة الجلسة عند الفتح */
+async function tryRestoreSession() {
+  const keep = sessionStorage.getItem('flora:keepLoggedIn');
+  if (keep !== 'true') return false;
+  const session = JSON.parse(sessionStorage.getItem('flora:session') || '{}');
+  if (!session.id || !session.time) return false;
+  // تحقق من مرور أكثر من 30 دقيقة
+  if (Date.now() - session.time > INACTIVITY_LIMIT) {
+    sessionStorage.removeItem('flora:keepLoggedIn');
+    sessionStorage.removeItem('flora:session');
+    showToast('⏰ انتهت جلستك — سجّل دخولك مجدداً', 'warning');
+    return false;
+  }
+  // انتظر تحميل البيانات ثم ابحث عن المستخدم
+  const user = Auth.users.find(u => u.id === session.id);
+  if (user) {
+    startSession(user);
+    return true;
+  }
+  return false;
+}
 
 /* Save all data when tab loses focus or user navigates away */
 document.addEventListener('visibilitychange', async () => {
