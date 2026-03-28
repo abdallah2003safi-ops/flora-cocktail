@@ -16,6 +16,84 @@
   --border:rgba(255,255,255,0.06);--radius:16px;--radius-sm:10px;
   --font:'Cairo',sans-serif;--font-alt:'Tajawal',sans-serif;
 }
+
+/* ══ LIGHT MODE ══ */
+html.light{
+  --black:#F5F5F5;
+  --dark:#EBEBEB;
+  --card-bg:#FFFFFF;
+  --card-border:rgba(0,0,0,0.09);
+  --surface:#FFFFFF;
+  --surface-alt:#F8F8F8;
+  --text:#1A1A1A;
+  --text-muted:#666;
+  --text-dim:#AAA;
+  --border:rgba(0,0,0,0.08);
+  --green:#16A34A;
+  --green-dark:#15803D;
+  --green-light:rgba(22,163,74,0.1);
+  --orange:#D97706;
+  --blue:#2563EB;
+}
+html.light body{background:#F0F2F5;}
+html.light .topbar{background:rgba(255,255,255,0.95);border-bottom:1px solid rgba(200,16,46,0.2);}
+html.light .topbar-logo .t-name{color:#1A1A1A;}
+html.light .topbar-nav button{color:#555;}
+html.light .topbar-nav button:hover{background:rgba(200,16,46,0.07);color:#C8102E;}
+html.light .topbar-nav button.active{background:rgba(200,16,46,0.12);color:#C8102E;}
+html.light .t-icon-btn{background:rgba(0,0,0,0.05);border-color:rgba(0,0,0,0.1);color:#555;}
+html.light .t-icon-btn:hover{background:rgba(200,16,46,0.1);color:var(--red);}
+html.light .card{background:#fff;border-color:rgba(0,0,0,0.09);box-shadow:0 2px 12px rgba(0,0,0,0.06);}
+html.light .stat-card{background:#fff;border-color:rgba(0,0,0,0.09);}
+html.light .form-control{background:#F8F8F8;border-color:rgba(0,0,0,0.15);color:#1A1A1A;}
+html.light .form-control:focus{background:#fff;border-color:var(--red);}
+html.light select.form-control option{background:#fff;color:#1A1A1A;}
+html.light .btn-ghost{background:rgba(0,0,0,0.05);border-color:rgba(0,0,0,0.12);color:#555;}
+html.light .btn-ghost:hover{background:rgba(0,0,0,0.09);color:#1A1A1A;}
+html.light .modal{background:#fff;border-color:rgba(0,0,0,0.1);}
+html.light .profile-dd{background:#fff;border-color:rgba(0,0,0,0.1);box-shadow:0 8px 30px rgba(0,0,0,0.12);}
+html.light .pd-item{color:#1A1A1A;}
+html.light .pd-item:hover{background:rgba(200,16,46,0.05);}
+html.light .hero{background:linear-gradient(135deg,#FFF0F2 0%,#FFE4E8 50%,#FECDD3 100%);}
+html.light .hero-text h1{color:#1A1A1A;}
+html.light .hero-chip{background:rgba(0,0,0,0.06);border-color:rgba(0,0,0,0.1);}
+html.light .hero-chip span{color:#1A1A1A;}
+html.light thead th{background:rgba(200,16,46,0.06);color:#666;}
+html.light tbody td{color:#1A1A1A;border-color:rgba(0,0,0,0.05);}
+html.light tbody tr:hover td{background:rgba(200,16,46,0.04);}
+html.light .tab-btn{color:#888;}
+html.light .tab-btn.active{color:var(--red);}
+html.light .tab-bar{border-color:rgba(0,0,0,0.1);}
+html.light .sale-product-card{background:#fff;border-color:rgba(0,0,0,0.09);}
+html.light .product-card{background:#fff;border-color:rgba(0,0,0,0.09);}
+html.light .material-card{background:#fff;border-color:rgba(0,0,0,0.09);}
+html.light .supplier-card{background:#fff;border-color:rgba(0,0,0,0.09);}
+html.light .user-card{background:#fff;border-color:rgba(0,0,0,0.09);}
+html.light .chat-sidebar{background:#fff;border-color:rgba(0,0,0,0.09);}
+html.light .chat-main{background:#fff;border-color:rgba(0,0,0,0.09);}
+html.light .msg-body{background:rgba(0,0,0,0.04);}
+html.light .chat-msg.mine .msg-body{background:rgba(200,16,46,0.08);}
+html.light .msg-text{color:#1A1A1A;}
+html.light .alert-item.danger{background:rgba(220,38,38,0.06);}
+html.light .alert-item.warning{background:rgba(245,158,11,0.06);}
+html.light .page-header{background:linear-gradient(135deg,#FFF0F2,#FECDD3);border-color:rgba(200,16,46,0.15);}
+html.light .page-header h1{color:#1A1A1A;}
+html.light .page-header p{color:#666;}
+html.light .login-card{background:rgba(255,255,255,0.9);border-color:rgba(0,0,0,0.1);}
+html.light #loginScreen{background:#F0F2F5;}
+html.light .login-card .field input{background:#F8F8F8;border-color:rgba(0,0,0,0.15);color:#1A1A1A;}
+html.light .sys-footer{background:rgba(255,255,255,0.8);border-color:rgba(200,16,46,0.1);color:#999;}
+html.light .toast{background:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.12);}
+html.light .badge-gray{background:#F3F4F6;color:#374151;border-color:#D1D5DB;}
+html.light ::-webkit-scrollbar-track{background:#F0F0F0;}
+html.light .sales-summary{background:rgba(22,163,74,0.06);border-color:rgba(22,163,74,0.15);}
+html.light .inv-total-bar{background:rgba(200,16,46,0.06);border-color:rgba(200,16,46,0.15);}
+html.light .cost-breakdown{background:rgba(200,16,46,0.04);}
+html.light .ledger-row{border-color:rgba(0,0,0,0.05);}
+html.light .ledger-row.opening{background:rgba(59,130,246,0.05);}
+html.light .ledger-row.purchase{background:rgba(22,163,74,0.04);}
+html.light .ledger-row.sale{background:rgba(220,38,38,0.04);}
+html.light .pw-req{background:rgba(220,38,38,0.05);}
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:var(--font);background:var(--black);color:var(--text);direction:rtl;min-height:100vh;overflow-x:hidden;}
 ::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:var(--dark);}::-webkit-scrollbar-thumb{background:var(--red);border-radius:3px;}
@@ -437,6 +515,7 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
   </ul>
   <div class="topbar-right">
     <div id="saveIndicator" style="font-size:.68rem;color:var(--text-muted);display:none;align-items:center;gap:4px;padding:0 6px;"></div>
+    <div class="t-icon-btn" onclick="toggleTheme()" id="themeBtn" title="تبديل الثيم">🌙</div>
     <div class="t-icon-btn" onclick="showPanel('alerts',null)" title="التنبيهات">🔔<span class="bell-badge" id="alertBadge"></span></div>
     <div class="profile-wrap">
       <div class="t-icon-btn" id="profileBtn" onclick="toggleProfileMenu()"><span id="profileBtnInner">👤</span></div>
@@ -3105,11 +3184,31 @@ async function saveEditSale(saleId) {
   showToast('✅ تم تعديل سجل البيع وتحديث خصم المواد', 'success');
 }
 
+
+/* ════════════════════════════════════════
+   THEME TOGGLE (Dark / Light)
+════════════════════════════════════════ */
+function toggleTheme() {
+  const isLight = document.documentElement.classList.toggle('light');
+  document.getElementById('themeBtn').textContent = isLight ? '☀️' : '🌙';
+  localStorage.setItem('flora:theme', isLight ? 'light' : 'dark');
+}
+
+function applyStoredTheme() {
+  const saved = localStorage.getItem('flora:theme');
+  if (saved === 'light') {
+    document.documentElement.classList.add('light');
+    const btn = document.getElementById('themeBtn');
+    if (btn) btn.textContent = '☀️';
+  }
+}
+
 /* ════════════════════════════════════════
    INIT
 ════════════════════════════════════════ */
 window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('footerYear').textContent = new Date().getFullYear();
+  applyStoredTheme();
   loadAll();
 });
 
