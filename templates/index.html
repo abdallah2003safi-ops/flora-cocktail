@@ -1723,7 +1723,12 @@ async function commitSales() {
     });
   });
   if(!anyAdded){showToast('لم يتم إدخال أي كميات','warning');return;}
-  await saveData('salesLog', AppData.salesLog);
+  // احفظ مباشرة على Firebase وانتظر
+  showSaveIndicator('saving');
+  localStorage.setItem('flora:salesLog', JSON.stringify(AppData.salesLog));
+  const commitOk = await fbSet('flora/salesLog', AppData.salesLog);
+  if (!commitOk) await fbSet('flora/salesLog', AppData.salesLog);
+  showSaveIndicator('saved');
   clearSaleQtys();
   renderSalesLog();
   renderDashboard();
@@ -2348,9 +2353,13 @@ async function saveInvoice(){
     AppData.invoices.push({id,supplier,date,items,total});
     showToast('تم حفظ الفاتورة ✅','success');
   }
-  await saveData('invoices', AppData.invoices);
+  // احفظ مباشرة على Firebase وانتظر التأكيد
+  showSaveIndicator('saving');
+  localStorage.setItem('flora:invoices', JSON.stringify(AppData.invoices));
+  const invOk = await fbSet('flora/invoices', AppData.invoices);
+  if (!invOk) await fbSet('flora/invoices', AppData.invoices); // retry
+  showSaveIndicator('saved');
   closeModal('invoiceModal');renderPurchasesTable();renderDashboard();updateAlertBadge();
-  // Also refresh reports if open
   const activePanel = document.querySelector('.panel.active')?.id;
   if(activePanel === 'panel-reports') { renderPurchasesReport(); }
 }
@@ -3393,15 +3402,43 @@ async function saveEditSale(saleId) {
     materialDeductions: newDeductions
   };
 
-  await saveData('salesLog', AppData.salesLog);
-  closeModal('editSaleModal');
-  renderSalesLog();
-  renderDashboard();
-  updateAlertBadge();
-  // Refresh reports if open
-  const activePanel = document.querySelector('.panel.active')?.id;
-  if (activePanel === 'panel-reports') renderSalesReport();
-  showToast('✅ تم تعديل سجل البيع وتحديث خصم المواد', 'success');
+  // أظهر مؤشر الحفظ وانتظر تأكيد Firebase قبل الإغلاق
+  showSaveIndicator('saving');
+  showToast('⏳ جاري الحفظ...', 'info');
+  
+  try {
+    // احفظ مباشرة على Firebase وانتظر التأكيد
+    localStorage.setItem('flora:salesLog', JSON.stringify(AppData.salesLog));
+    const ok = await fbSet('flora/salesLog', AppData.salesLog);
+    
+    if (ok) {
+      showSaveIndicator('saved');
+      closeModal('editSaleModal');
+      renderSalesLog();
+      renderDashboard();
+      updateAlertBadge();
+      const activePanel = document.querySelector('.panel.active')?.id;
+      if (activePanel === 'panel-reports') renderSalesReport();
+      showToast('✅ تم تعديل سجل البيع وتحديث خصم المواد', 'success');
+    } else {
+      // Firebase فشل — جرب مرة ثانية
+      const ok2 = await fbSet('flora/salesLog', AppData.salesLog);
+      if (ok2) {
+        showSaveIndicator('saved');
+        closeModal('editSaleModal');
+        renderSalesLog();
+        renderDashboard();
+        updateAlertBadge();
+        showToast('✅ تم الحفظ', 'success');
+      } else {
+        showSaveIndicator('error');
+        showToast('❌ فشل الحفظ على السيرفر — تحقق من الاتصال وحاول مرة ثانية', 'warning');
+      }
+    }
+  } catch(e) {
+    showSaveIndicator('error');
+    showToast('❌ خطأ في الحفظ: ' + e.message, 'warning');
+  }
 }
 
 
