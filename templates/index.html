@@ -1792,9 +1792,8 @@ function showPanel(name,btn){
   if(name==='alerts') renderAlerts();
   if(name==='profile') updateProfileUI();
   if(name==='users'){if(!Auth.isAdmin()){showPanel('dashboard',null);showToast('غير مسموح','warning');return;}renderUsersList();}
-  if(name==='reports'){initReportsFilters();renderSalesReport();}
+  if(name==='reports'){initReportsPanel();}
   if(name==='chat'){renderChatUsersList();renderChatMessages();}
-  if(name==='reports') initReportsPanel();
 }
 
 /* ════════════════════════════════════════
@@ -2839,20 +2838,98 @@ function resetPurchasesReportFilters() {
   renderPurchasesReport();
 }
 
-function printReport(type) {
-  const now = new Date().toLocaleDateString('ar-SA', {year:'numeric',month:'long',day:'numeric'});
-  if(type==='sales') {
-    document.getElementById('rpt-print-header-sales').style.display='block';
-    document.getElementById('rpt-print-date-sales').textContent = 'تاريخ الطباعة: ' + now;
+function printReport(areaId) {
+  const areaEl = document.getElementById(areaId);
+  if(!areaEl){ showToast('لا توجد بيانات للطباعة','warning'); return; }
+
+  const clone = areaEl.cloneNode(true);
+  // Remove buttons from print
+  clone.querySelectorAll('button,.action-btns,.btn').forEach(el=>el.remove());
+  const tableHTML = clone.innerHTML;
+
+  const logo = AppData.logo || {name:'فلورا كوكتيل',sub:'FLORA COCKTAIL',letter:'F',img:null};
+  const logoImgHTML = logo.img
+    ? `<img src="${logo.img}" style="width:65px;height:65px;border-radius:50%;object-fit:cover;border:3px solid #C8102E;">`
+    : `<div style="width:65px;height:65px;border-radius:50%;background:#C8102E;display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:900;color:#fff;">${logo.letter||'F'}</div>`;
+
+  const isSales = areaId.includes('sales');
+  const reportTitle = isSales ? 'تقرير المبيعات' : 'تقرير المشتريات';
+  const now = new Date().toLocaleDateString('ar-SA',{year:'numeric',month:'long',day:'numeric'});
+
+  let filtersSummary = '';
+  if(isSales){
+    const from=document.getElementById('rpt-sales-from')?.value;
+    const to=document.getElementById('rpt-sales-to')?.value;
+    const catEl=document.getElementById('rpt-sales-cat');
+    const cat=catEl?.value;
+    const prodEl=document.getElementById('rpt-sales-product');
+    const prod=prodEl?.selectedIndex>0?prodEl.options[prodEl.selectedIndex].text:'';
+    const p=[];
+    if(from)p.push('من: '+from);
+    if(to)p.push('إلى: '+to);
+    if(cat)p.push('الفئة: '+cat);
+    if(prod)p.push('الصنف: '+prod);
+    filtersSummary=p.join(' | ');
   } else {
-    document.getElementById('rpt-print-header-pur').style.display='block';
-    document.getElementById('rpt-print-date-pur').textContent = 'تاريخ الطباعة: ' + now;
+    const from=document.getElementById('rpt-pur-from')?.value;
+    const to=document.getElementById('rpt-pur-to')?.value;
+    const sup=document.getElementById('rpt-pur-supplier')?.value;
+    const matEl=document.getElementById('rpt-pur-material');
+    const mat=matEl?.selectedIndex>0?matEl.options[matEl.selectedIndex].text:'';
+    const p=[];
+    if(from)p.push('من: '+from);
+    if(to)p.push('إلى: '+to);
+    if(sup)p.push('المورّد: '+sup);
+    if(mat)p.push('المادة: '+mat);
+    filtersSummary=p.join(' | ');
   }
-  setTimeout(()=>{ window.print(); }, 200);
-  setTimeout(()=>{
-    if(type==='sales') document.getElementById('rpt-print-header-sales').style.display='none';
-    else document.getElementById('rpt-print-header-pur').style.display='none';
-  }, 1000);
+
+  const w = window.open('','_blank');
+  if(!w){showToast('السماح بالنوافذ المنبثقة للطباعة','warning');return;}
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head>
+<meta charset="UTF-8"><title>${reportTitle} — ${logo.name}</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Cairo',sans-serif;direction:rtl;padding:1.5cm 2cm;color:#111;background:#fff;}
+.print-header{display:flex;align-items:center;justify-content:space-between;padding-bottom:.75rem;margin-bottom:1rem;border-bottom:3px solid #C8102E;}
+.logo-area{display:flex;align-items:center;gap:.75rem;}
+.brand{font-size:1.3rem;font-weight:900;color:#C8102E;line-height:1.2;}
+.sub{font-size:.7rem;color:#888;letter-spacing:2px;}
+.meta{text-align:left;}
+.rpt-title{font-size:1rem;font-weight:700;}
+.rpt-date{font-size:.72rem;color:#666;margin-top:2px;}
+.rpt-filters{font-size:.68rem;color:#999;margin-top:2px;}
+table{width:100%;border-collapse:collapse;margin-top:.5rem;font-size:.78rem;}
+thead th{background:#C8102E;color:#fff;padding:.45rem .65rem;text-align:right;font-weight:700;}
+tbody td{padding:.4rem .65rem;border-bottom:1px solid #eee;vertical-align:middle;}
+tbody tr:nth-child(even) td{background:#fdf5f6;}
+.badge{display:inline-block;padding:1px 7px;border-radius:20px;font-size:.67rem;font-weight:700;}
+.badge-red{background:rgba(200,16,46,.1);color:#C8102E;border:1px solid rgba(200,16,46,.25);}
+.badge-green{background:rgba(34,197,94,.1);color:#15803D;border:1px solid rgba(34,197,94,.25);}
+.badge-orange{background:rgba(245,158,11,.1);color:#B45309;border:1px solid rgba(245,158,11,.25);}
+.badge-blue{background:rgba(59,130,246,.1);color:#1D4ED8;border:1px solid rgba(59,130,246,.25);}
+.badge-gray{background:#f3f4f6;color:#374151;border:1px solid #d1d5db;}
+.deduction-badge{display:inline-block;padding:1px 6px;border-radius:20px;font-size:.65rem;background:#fee2e2;color:#B91C1C;border:1px solid #fecaca;margin:1px;}
+.print-footer{margin-top:1rem;padding-top:.5rem;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:.68rem;color:#aaa;}
+@media print{body{padding:.5cm 1cm;}button{display:none!important;}}
+</style></head><body>
+<div class="print-header">
+  <div class="logo-area">
+    ${logoImgHTML}
+    <div><div class="brand">${logo.name}</div><div class="sub">${logo.sub}</div></div>
+  </div>
+  <div class="meta">
+    <div class="rpt-title">📋 ${reportTitle}</div>
+    <div class="rpt-date">تاريخ الطباعة: ${now}</div>
+    ${filtersSummary?`<div class="rpt-filters">الفلترة: ${filtersSummary}</div>`:''}
+  </div>
+</div>
+${tableHTML}
+<div class="print-footer"><span>${logo.name} — ${logo.sub}</span><span>${reportTitle} | ${now}</span></div>
+<script>window.onload=()=>{setTimeout(()=>{window.print();},400);}<\/script>
+</body></html>`);
+  w.document.close();
 }
 
 /* ════════════════════════════════════════
