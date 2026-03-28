@@ -641,15 +641,15 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
 
   /* ─ التوب بار ─ */
   .topbar{
-    padding:0 1rem;gap:.5rem;
-    height:54px;
+    padding:0 .75rem;gap:.4rem;
+    height:50px;
   }
-  .topbar-logo .t-sub{display:none;}
-  .topbar-logo .t-name{font-size:.9rem;font-weight:800;}
-  .topbar-logo .t-icon{width:32px;height:32px;}
+  .topbar-logo .t-sub{font-size:.55rem;letter-spacing:.5px;}
+  .topbar-logo .t-name{font-size:.88rem;font-weight:800;}
+  .topbar-logo .t-icon{width:30px;height:30px;}
   .topbar-nav{display:none;}
-  .topbar-right{gap:6px;}
-  .t-icon-btn{width:34px;height:34px;font-size:.85rem;}
+  .topbar-right{gap:5px;}
+  .t-icon-btn{width:32px;height:32px;font-size:.8rem;}
   #saveIndicator{display:none!important;}
 
   /* ─ الجسم ─ */
@@ -690,38 +690,43 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
   }
 
   /* ─ صفحة الرئيسية Hero ─ */
-  .hero{padding:1rem .85rem .85rem;border-radius:0;}
+  .hero{padding:.85rem .75rem .75rem;border-radius:0;}
   .hero::after,.hero::before{display:none;}
-  .hero-inner{
-    flex-direction:row-reverse;gap:.75rem;align-items:center;
-  }
-  .hero-logo{width:72px;height:52px;border-radius:10px;}
-  .hero-logo img{max-width:65px;max-height:45px;}
-  .hero-text h1{font-size:1.15rem;margin-bottom:3px;}
-  .hero-text p{font-size:.72rem;}
-  .hero-chips{gap:.3rem;margin-top:.5rem;flex-wrap:wrap;}
-  .hero-chip{font-size:.62rem;padding:2px 8px;}
+  .hero-inner{flex-direction:row;gap:.65rem;align-items:center;}
+  .hero-logo{width:60px;height:44px;border-radius:8px;flex-shrink:0;}
+  .hero-logo img{max-width:54px;max-height:38px;}
+  .hero-text h1{font-size:1rem;margin-bottom:2px;}
+  .hero-text p{font-size:.68rem;}
+  .hero-chips{gap:.25rem;margin-top:.4rem;flex-wrap:wrap;}
+  .hero-chip{font-size:.6rem;padding:1px 7px;}
 
   /* ─ بطاقات الإحصاء ─ */
   .stats-row{
     grid-template-columns:repeat(2,1fr);
-    gap:.6rem;
+    gap:.55rem;
   }
-  .stat-card{padding:.85rem .75rem .7rem;}
-  .stat-val{font-size:1.4rem;}
-  .stat-label{font-size:.65rem;}
-  .stat-icon{font-size:1.3rem;bottom:.5rem;left:.75rem;}
+  .stat-card{padding:.75rem .65rem .6rem;overflow:hidden;}
+  .stat-val{font-size:1.2rem;word-break:break-all;}
+  .stat-label{font-size:.6rem;line-height:1.3;}
+  .stat-icon{font-size:1.2rem;bottom:.4rem;left:.6rem;opacity:.12;}
 
   /* ─ الكروت ─ */
-  .card{border-radius:12px;margin-bottom:.85rem;}
-  .card-header{padding:.7rem .85rem;flex-wrap:wrap;gap:.5rem;}
-  .card-header h3{font-size:.82rem;}
-  .card-body{padding:.85rem;}
+  .card{border-radius:12px;margin-bottom:.75rem;overflow:hidden;}
+  .card-header{padding:.65rem .75rem;flex-wrap:wrap;gap:.4rem;}
+  .card-header h3{font-size:.8rem;}
+  .card-body{padding:.75rem;}
+
+  /* ─ داشبورد: عمود واحد ─ */
+  #panel-dashboard .content > div[style*="grid-template-columns:1fr 1fr"],
+  #panel-dashboard .content > div[style*="grid-template-columns: 1fr 1fr"]{
+    grid-template-columns:1fr !important;
+    gap:.75rem !important;
+  }
 
   /* ─ عنوان الصفحة ─ */
-  .page-header{padding:.85rem .85rem .7rem;}
-  .page-header h1{font-size:1rem;font-weight:800;}
-  .page-header p{font-size:.72rem;}
+  .page-header{padding:.7rem .75rem .6rem;}
+  .page-header h1{font-size:.95rem;font-weight:800;}
+  .page-header p{font-size:.7rem;margin-top:2px;}
 
   /* ─ الجداول ─ */
   .table-wrap{
@@ -911,7 +916,7 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
 
 <!-- TOPBAR -->
 <nav class="topbar" id="mainTopbar" style="display:none;">
-  <div class="topbar-logo" onclick="editLogoPrompt()">
+  <div class="topbar-logo" onclick="showPanel('dashboard',null)" style="cursor:pointer;" title="الرئيسية">
     <div class="t-icon" id="topbarIcon"><span id="topbarLetter">F</span></div>
     <div><div class="t-name" id="topbarName">فلورا كوكتيل</div><div class="t-sub" id="topbarSub">FLORA COCKTAIL</div></div>
   </div>
@@ -1515,7 +1520,29 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
 /* ════════════════════════════════════════
    APP STATE
 ════════════════════════════════════════ */
-const PERMISSIONS = ['purchases','suppliers','materials','products','costs','profit','chat','sales'];
+const PERMISSIONS = [
+  // المبيعات
+  'sales_view',      // عرض المبيعات
+  'sales_add',       // تسجيل مبيعات جديدة
+  'sales_edit',      // تعديل سجلات البيع
+  'sales_delete',    // حذف سجلات البيع
+  // المشتريات
+  'purchases_view',  // عرض الفواتير
+  'purchases_add',   // إضافة فاتورة شراء
+  'purchases_edit',  // تعديل الفواتير
+  // المواد والأصناف
+  'materials',       // إدارة المواد الخام
+  'products',        // إدارة الأصناف والمنتجات
+  'suppliers',       // إدارة الموردين
+  // التقارير والمالية
+  'reports',         // عرض التقارير
+  'costs',           // إدارة التكاليف
+  'profit',          // عرض تقرير الربح
+  // الأخرى
+  'chat',            // الدردشة
+  'alerts',          // عرض التنبيهات
+  'export',          // طباعة وتصدير التقارير
+];
 
 const Auth = {
   currentUser: null,
@@ -1954,9 +1981,34 @@ function applyPermissionsUI() {
   const u = Auth.currentUser; if(!u) return;
   const isAdmin = Auth.isAdmin();
   document.querySelectorAll('.admin-only').forEach(el=>el.style.display=isAdmin?'':'none');
+  // Map new granular perms to UI classes
+  const permMap = {
+    'sales':       u.permissions?.sales_view || u.permissions?.sales_add,
+    'sales_add':   u.permissions?.sales_add,
+    'sales_edit':  u.permissions?.sales_edit,
+    'sales_delete':u.permissions?.sales_delete,
+    'purchases':   u.permissions?.purchases_view || u.permissions?.purchases_add,
+    'purchases_add': u.permissions?.purchases_add,
+    'purchases_edit':u.permissions?.purchases_edit,
+    'materials':   u.permissions?.materials,
+    'products':    u.permissions?.products,
+    'suppliers':   u.permissions?.suppliers,
+    'reports':     u.permissions?.reports,
+    'costs':       u.permissions?.costs,
+    'profit':      u.permissions?.profit,
+    'chat':        u.permissions?.chat,
+    'alerts':      u.permissions?.alerts,
+    'export':      u.permissions?.export,
+  };
   PERMISSIONS.forEach(perm=>{
     const allowed = isAdmin || (u.permissions&&u.permissions[perm]);
     document.querySelectorAll('.perm-'+perm).forEach(el=>{el.style.display=allowed?'':'none';});
+  });
+  // Apply mapped perms for old CSS classes
+  Object.entries(permMap).forEach(([cls,allowed])=>{
+    document.querySelectorAll('.perm-'+cls).forEach(el=>{
+      if(!isAdmin) el.style.display=allowed?'':'none';
+    });
   });
 }
 
@@ -2230,9 +2282,27 @@ async function handleAvatarUpload(e){
 function renderUsersList(){
   document.getElementById('usersList').innerHTML = Auth.users.map(u=>{
     const isAd = u.role==='admin';
-    const permsHtml = PERMISSIONS.map(p=>`
-      <label class="perm-check"><input type="checkbox" ${u.permissions[p]?'checked':''} ${isAd?'disabled':''} onchange="togglePerm('${u.id}','${p}',this.checked)">
-      ${{purchases:'مشتريات',suppliers:'موردون',materials:'مواد',products:'أصناف',costs:'تكاليف',profit:'ربح',chat:'دردشة',sales:'مبيعات'}[p]}</label>`).join('');
+    const PERM_LABELS2 = {
+      sales_view:'👁 عرض المبيعات', sales_add:'➕ تسجيل', sales_edit:'✏️ تعديل', sales_delete:'🗑 حذف',
+      purchases_view:'👁 عرض المشتريات', purchases_add:'➕ إضافة فاتورة', purchases_edit:'✏️ تعديل',
+      materials:'📦 مواد خام', products:'🧃 أصناف', suppliers:'🏭 موردون',
+      reports:'📊 تقارير', costs:'💰 تكاليف', profit:'📈 الربح',
+      chat:'💬 دردشة', alerts:'🔔 تنبيهات', export:'🖨 طباعة',
+    };
+    const PERM_GROUPS2 = [
+      {label:'📋 المبيعات', perms:['sales_view','sales_add','sales_edit','sales_delete']},
+      {label:'🛒 المشتريات', perms:['purchases_view','purchases_add','purchases_edit']},
+      {label:'📦 البيانات', perms:['materials','products','suppliers']},
+      {label:'📊 المالية', perms:['reports','costs','profit','export']},
+      {label:'🔔 الأخرى', perms:['chat','alerts']},
+    ];
+    const permsHtml = PERM_GROUPS2.map(g=>`
+      <div style="margin-bottom:.4rem;">
+        <div style="font-size:.65rem;font-weight:800;color:var(--text-dim);margin-bottom:.2rem;">${g.label}</div>
+        <div class="perm-grid" style="grid-template-columns:repeat(auto-fill,minmax(110px,1fr));">
+          ${g.perms.map(p=>`<label class="perm-check"><input type="checkbox" ${u.permissions?.[p]?'checked':''} ${isAd?'disabled':''} onchange="togglePerm('${u.id}','${p}',this.checked)"> ${PERM_LABELS2[p]||p}</label>`).join('')}
+        </div>
+      </div>`).join('');
     return `<div class="user-card">
       <div class="user-av">${u.avatar?`<img src="${u.avatar}">`:u.name.charAt(0)}</div>
       <div style="flex:1;">
@@ -2250,7 +2320,7 @@ function renderUsersList(){
 
 async function togglePerm(uid,perm,val){
   const u = Auth.users.find(x=>x.id===uid);
-  if(u){u.permissions[perm]=val; saveUsers(Auth.users);}
+  if(u){if(!u.permissions)u.permissions={};u.permissions[perm]=val; saveUsers(Auth.users);}
 }
 
 function openAddUserModal(){
