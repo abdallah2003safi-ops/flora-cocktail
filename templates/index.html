@@ -303,8 +303,8 @@ body{font-family:var(--font);background:var(--black);color:var(--text);direction
 .login-wrap{position:relative;z-index:1;width:100%;max-width:420px;padding:1.5rem;animation:loginFade .5s ease;}
 @keyframes loginFade{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
 .login-logo-area{text-align:center;margin-bottom:1rem;}
-.login-logo-circle{width:100%;height:200px;border-radius:var(--radius);background:var(--surface);display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem;overflow:hidden;border:1px solid var(--border);box-shadow:0 20px 60px rgba(0,0,0,0.15);font-size:2.5rem;font-weight:900;color:var(--red);backdrop-filter:blur(20px);}
-.login-logo-circle img{height:170px;width:auto;max-width:95%;object-fit:contain;padding:0;}
+.login-logo-circle{width:100%;height:260px;border-radius:var(--radius);background:var(--surface);display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem;overflow:hidden;border:1px solid var(--border);box-shadow:0 20px 60px rgba(0,0,0,0.15);font-size:2.5rem;font-weight:900;color:var(--red);backdrop-filter:blur(20px);}
+.login-logo-circle img{height:230px;width:auto;max-width:95%;object-fit:contain;padding:0;}
 .login-brand{font-family:var(--font-alt);font-size:1.8rem;font-weight:900;color:#fff;letter-spacing:1px;}
 .login-sub{font-size:.75rem;color:var(--text-muted);letter-spacing:3px;text-transform:uppercase;margin-top:3px;}
 .login-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:2rem;backdrop-filter:blur(20px);box-shadow:0 20px 60px rgba(0,0,0,0.15);}
@@ -716,8 +716,8 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
 
   /* تسجيل الدخول */
   .login-wrap{padding:.75rem;}
-  .login-logo-circle{height:160px;}
-  .login-logo-circle img{height:130px;}
+  .login-logo-circle{height:200px;}
+  .login-logo-circle img{height:170px;}
   .login-brand{font-size:1.4rem;}
 
   /* التقارير */
@@ -1555,7 +1555,25 @@ async function loadAll() {
     // Load all AppData keys from Firebase
     for (const key of STORAGE_KEYS) {
       const val = await loadData(key);
-      if (val !== null) AppData[key] = val;
+      if (val !== null) {
+        if (key === 'logo') {
+          const defaultImg = AppData.logo.img; // الصورة المدمجة بالكود
+          AppData[key] = val;
+          // لو Firebase ما عنده صورة — استخدم الصورة الافتراضية واحفظها
+          if (!AppData.logo.img && defaultImg) {
+            AppData.logo.img = defaultImg;
+            // احفظ الصورة على Firebase حتى ما تضيع المرة الجاية
+            fbSet('flora/logo', AppData.logo);
+            localStorage.setItem('flora:logo', JSON.stringify(AppData.logo));
+          }
+        } else {
+          AppData[key] = val;
+        }
+      } else if (key === 'logo') {
+        // Firebase ما عنده logo أصلاً — احفظ الافتراضي
+        fbSet('flora/logo', AppData.logo);
+        localStorage.setItem('flora:logo', JSON.stringify(AppData.logo));
+      }
     }
 
     // Seed defaults if first run
@@ -2135,7 +2153,15 @@ async function fullSync() {
   const currentPanel = document.querySelector('.panel.active')?.id?.replace('panel-','');
   for (const key of STORAGE_KEYS) {
     const val = await loadData(key);
-    if (val !== null) AppData[key] = val;
+    if (val !== null) {
+      if (key === 'logo') {
+        const defaultImg = AppData.logo.img;
+        AppData[key] = val;
+        if (!AppData.logo.img && defaultImg) AppData.logo.img = defaultImg;
+      } else {
+        AppData[key] = val;
+      }
+    }
   }
   // Also sync users
   try {
