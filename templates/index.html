@@ -1959,6 +1959,9 @@ let syncTimer = null;
 /* Full background sync — pulls ALL shared keys every 5s so every user sees each other's changes */
 async function fullSync() {
   if (!Auth.currentUser) return;
+  // لا تعمل sync لما يكون أي مودال مفتوح — لأن المستخدم ممكن يكون بيعدل
+  const anyModalOpen = document.querySelector('.modal-overlay.active');
+  if (anyModalOpen) return;
   const currentPanel = document.querySelector('.panel.active')?.id?.replace('panel-','');
   for (const key of STORAGE_KEYS) {
     const val = await loadData(key);
@@ -2122,8 +2125,20 @@ function showPanel(name,btn){
 /* ════════════════════════════════════════
    MODALS
 ════════════════════════════════════════ */
-function closeModal(id){document.getElementById(id).classList.remove('active');}
-function openModal(id){document.getElementById(id).classList.add('active');}
+function closeModal(id){
+  document.getElementById(id).classList.remove('active');
+  // أعد الـ sync بس لما ما في مودالات مفتوحة
+  const anyStillOpen = document.querySelector('.modal-overlay.active');
+  if (!anyStillOpen && Auth.currentUser) {
+    clearInterval(syncTimer);
+    syncTimer = setInterval(fullSync, 5000);
+  }
+}
+function openModal(id){
+  document.getElementById(id).classList.add('active');
+  // أوقف الـ sync لما المودال مفتوح
+  clearInterval(syncTimer);
+}
 
 /* ════════════════════════════════════════
    TOAST
