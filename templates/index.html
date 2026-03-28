@@ -756,6 +756,28 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
 <div class="modal-overlay" id="userModal"><div class="modal" style="max-width:580px;"><div class="modal-header"><div class="modal-title" id="userModalTitle">إضافة مستخدم</div><button class="modal-close" onclick="closeModal('userModal')">×</button></div><div id="userModalBody"></div></div></div>
 
 <!-- CHAT -->
+<div class="panel" id="panel-chat">
+  <div class="page-header"><h1>💬 الدردشة</h1><p>مساحة مشتركة للتواصل بين الفريق</p></div>
+  <div class="content">
+    <div class="chat-layout">
+      <div class="chat-sidebar">
+        <div class="chat-sidebar-header">👥 المستخدمون</div>
+        <div id="chatUsersList" style="overflow-y:auto;flex:1;"></div>
+      </div>
+      <div class="chat-main">
+        <div class="chat-main-header">
+          <span>💬 الدردشة العامة</span>
+          <span style="font-size:.72rem;color:var(--text-muted);" id="chatOnlineCount"></span>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input-area">
+          <input type="text" class="form-control" id="chatInput" placeholder="اكتب رسالة..." onkeydown="if(event.key==='Enter')sendChatMessage()">
+          <button class="btn btn-primary btn-sm" onclick="sendChatMessage()">إرسال</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ════════════════ REPORTS ════════════════ -->
 <div class="panel" id="panel-reports">
