@@ -303,8 +303,8 @@ body{font-family:var(--font);background:var(--black);color:var(--text);direction
 .login-wrap{position:relative;z-index:1;width:100%;max-width:420px;padding:1.5rem;animation:loginFade .5s ease;}
 @keyframes loginFade{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
 .login-logo-area{text-align:center;margin-bottom:2rem;}
-.login-logo-circle{width:100px;height:100px;border-radius:50%;background:linear-gradient(135deg,var(--red),var(--red-dark));display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;box-shadow:0 0 40px rgba(200,16,46,0.4);overflow:hidden;border:3px solid rgba(200,16,46,0.5);font-size:2.2rem;font-weight:900;color:#fff;}
-.login-logo-circle img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
+.login-logo-circle{width:140px;height:100px;border-radius:0;background:transparent;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;overflow:hidden;border:none;box-shadow:none;font-size:2.2rem;font-weight:900;color:var(--red);}
+.login-logo-circle img{width:auto;max-width:100%;max-height:100px;object-fit:contain;border-radius:0;}
 .login-brand{font-family:var(--font-alt);font-size:1.8rem;font-weight:900;color:#fff;letter-spacing:1px;}
 .login-sub{font-size:.75rem;color:var(--text-muted);letter-spacing:3px;text-transform:uppercase;margin-top:3px;}
 .login-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:2rem;backdrop-filter:blur(20px);box-shadow:0 20px 60px rgba(0,0,0,0.15);}
@@ -329,7 +329,7 @@ body{font-family:var(--font);background:var(--black);color:var(--text);direction
 .topbar{position:sticky;top:0;z-index:300;background:var(--surface);backdrop-filter:blur(20px);border-bottom:1px solid rgba(200,16,46,0.2);height:60px;display:flex;align-items:center;padding:0 1.5rem;gap:1rem;}
 .topbar-logo{display:flex;align-items:center;gap:10px;cursor:pointer;flex-shrink:0;}
 .topbar-logo .t-icon{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--red),var(--red-dark));display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:900;color:#fff;overflow:hidden;flex-shrink:0;box-shadow:0 0 12px rgba(200,16,46,0.3);}
-.topbar-logo .t-icon img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
+.topbar-logo .t-icon img{width:100%;height:100%;object-fit:contain;border-radius:0;padding:2px;}
 .topbar-logo .t-name{font-family:var(--font-alt);font-size:1rem;font-weight:700;color:#fff;}
 .topbar-logo .t-sub{font-size:.62rem;color:var(--text-muted);letter-spacing:1px;}
 .topbar-nav{flex:1;display:flex;gap:2px;overflow-x:auto;justify-content:center;}
@@ -367,8 +367,8 @@ body{font-family:var(--font);background:var(--black);color:var(--text);direction
 .hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 80% at 80% 50%,rgba(200,16,46,0.2),transparent);}
 .hero::after{content:'فلورا';position:absolute;right:-2rem;top:50%;transform:translateY(-50%);font-family:var(--font-alt);font-size:9rem;font-weight:900;color:rgba(200,16,46,0.05);letter-spacing:-5px;line-height:1;pointer-events:none;white-space:nowrap;}
 .hero-inner{position:relative;z-index:1;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;}
-.hero-logo{width:100px;height:100px;border-radius:50%;background:linear-gradient(135deg,var(--red),var(--red-dark));display:flex;align-items:center;justify-content:center;font-size:2.2rem;font-weight:900;color:#fff;flex-shrink:0;box-shadow:0 0 40px rgba(200,16,46,0.45);border:3px solid rgba(200,16,46,0.4);overflow:hidden;}
-.hero-logo img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
+.hero-logo{width:140px;height:100px;border-radius:0;background:transparent;display:flex;align-items:center;justify-content:center;font-size:2.2rem;font-weight:900;color:var(--red);flex-shrink:0;overflow:hidden;}
+.hero-logo img{width:auto;max-width:100%;max-height:100px;object-fit:contain;border-radius:0;}
 .hero-text h1{font-family:var(--font-alt);font-size:1.8rem;font-weight:900;line-height:1.1;color:var(--text);}
 .hero-text p{font-size:.82rem;color:var(--text-muted);margin-top:4px;}
 .hero-chips{display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap;}
@@ -2085,10 +2085,21 @@ async function saveLogo(){
 }
 function applyLogo(){
   const {name,sub,letter,img}=AppData.logo;
-  const setEl=(el,l,i)=>{if(!el)return;el.innerHTML=i?`<img src="${i}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`:`<span>${l}</span>`;};
-  setEl(document.getElementById('topbarIcon'),letter,img);
-  setEl(document.getElementById('dashLogoEl'),letter,img);
-  setEl(document.getElementById('loginLogoEl'),letter,img);
+  // Topbar icon — دائرة صغيرة
+  const topbarIcon = document.getElementById('topbarIcon');
+  if(topbarIcon) topbarIcon.innerHTML = img
+    ? `<img src="${img}" style="width:100%;height:100%;object-fit:contain;padding:2px;">`
+    : `<span>${letter}</span>`;
+  // Hero logo — صورة كاملة بدون قص
+  const dashLogo = document.getElementById('dashLogoEl');
+  if(dashLogo) dashLogo.innerHTML = img
+    ? `<img src="${img}" style="max-width:140px;max-height:100px;width:auto;height:auto;object-fit:contain;">`
+    : `<span>${letter}</span>`;
+  // Login logo — صورة كاملة بدون قص
+  const loginLogo = document.getElementById('loginLogoEl');
+  if(loginLogo) loginLogo.innerHTML = img
+    ? `<img src="${img}" style="max-width:140px;max-height:100px;width:auto;height:auto;object-fit:contain;">`
+    : `<span>${letter}</span>`;
   document.getElementById('topbarName').textContent=name;
   document.getElementById('topbarSub').textContent=sub;
   document.getElementById('dashLogoName').textContent=name+' 🌹';
