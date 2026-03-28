@@ -1301,44 +1301,42 @@ async function fbGet(path) {
 }
 
 async function saveData(key, data) {
-  // 1. Save to localStorage immediately (instant, never fails)
+  // 1. Save to localStorage first (instant backup)
   try { localStorage.setItem('flora:' + key, JSON.stringify(data)); } catch(e) {}
 
-  // 2. Sync to Firebase
+  // 2. Save to Firebase (master source)
   showSaveIndicator('saving');
-  try {
-    await fbSet('flora/' + key, data);
-    showSaveIndicator('saved');
-  } catch(e) {
-    console.warn('Firebase sync failed for', key, e);
-    showSaveIndicator('local');
+  let retries = 3;
+  while (retries > 0) {
+    try {
+      const ok = await fbSet('flora/' + key, data);
+      if (ok) {
+        showSaveIndicator('saved');
+        return;
+      }
+    } catch(e) {}
+    retries--;
+    if (retries > 0) await new Promise(r => setTimeout(r, 800));
   }
+  // Firebase failed after retries — data is still in localStorage
+  showSaveIndicator('local');
+  showToast('⚠️ تم الحفظ محلياً — تحقق من اتصالك بالإنترنت', 'warning');
 }
 
 async function loadData(key) {
   try {
-    // Try Firebase first — but merge with localStorage to ensure freshness
-    const [firebaseData, localRaw] = await Promise.all([
-      fbGet('flora/' + key).catch(() => null),
-      Promise.resolve(localStorage.getItem('flora:' + key))
-    ]);
-
-    const localData = localRaw ? JSON.parse(localRaw) : null;
-
-    if (firebaseData !== null && localData !== null) {
-      // Both exist — use Firebase (shared source of truth across devices)
+    const firebaseData = await fbGet('flora/' + key);
+    if (firebaseData !== null) {
+      // Firebase is the master — update localStorage and return
+      localStorage.setItem('flora:' + key, JSON.stringify(firebaseData));
       return firebaseData;
     }
-    if (firebaseData !== null) return firebaseData;
-    if (localData !== null) return localData;
-    return null;
-  } catch(e) {
-    // Firebase failed — use localStorage
-    try {
-      const raw = localStorage.getItem('flora:' + key);
-      return raw ? JSON.parse(raw) : null;
-    } catch(e2) { return null; }
-  }
+  } catch(e) {}
+  // Firebase failed or empty — fallback to localStorage
+  try {
+    const raw = localStorage.getItem('flora:' + key);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
 }
 
 async function saveUsers(users) {
