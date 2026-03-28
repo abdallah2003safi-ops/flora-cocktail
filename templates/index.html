@@ -349,7 +349,16 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
 
 @media(max-width:900px){.chat-layout{grid-template-columns:1fr;height:auto;}.chat-main{height:400px;}}
 @media(max-width:768px){.topbar-nav{display:none;}}
-@media print{.topbar,.btn,.action-btns{display:none!important;}}
+@media print{
+  .topbar,.btn,.action-btns,.tab-bar,.card-header .btn,#rpt-sales-summary .stat-icon,#rpt-pur-summary .stat-icon{display:none!important;}
+  body{background:#fff!important;color:#000!important;}
+  .panel{display:block!important;}
+  .card{border:1px solid #ddd!important;background:#fff!important;}
+  tbody td,thead th{color:#000!important;border-color:#ddd!important;}
+  .badge{border:1px solid #ccc!important;}
+  .stat-card{background:#f5f5f5!important;border:1px solid #ddd!important;}
+  .stat-val{color:#000!important;}
+}
 </style>
 </head>
 <body>
@@ -423,6 +432,7 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
     <li><button class="nav-btn" data-panel="definitions" onclick="showPanel('definitions',this)">⚙️ التعريفات</button></li>
     <li><button class="nav-btn" data-panel="costs" onclick="showPanel('costs',this)">💰 التكاليف</button></li>
     <li><button class="nav-btn" data-panel="profit" onclick="showPanel('profit',this)">📊 الربح</button></li>
+    <li><button class="nav-btn" data-panel="reports" onclick="showPanel('reports',this)">📈 التقارير</button></li>
     <li><button class="nav-btn" data-panel="chat" onclick="showPanel('chat',this)">💬 الدردشة</button></li>
   </ul>
   <div class="topbar-right">
@@ -746,6 +756,210 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
 <div class="modal-overlay" id="userModal"><div class="modal" style="max-width:580px;"><div class="modal-header"><div class="modal-title" id="userModalTitle">إضافة مستخدم</div><button class="modal-close" onclick="closeModal('userModal')">×</button></div><div id="userModalBody"></div></div></div>
 
 <!-- CHAT -->
+
+<!-- ════════════════ REPORTS ════════════════ -->
+<div class="panel" id="panel-reports">
+  <div class="page-header">
+    <h1>📑 التقارير</h1>
+    <p>تقارير المبيعات والمشتريات مع الفلترة والطباعة</p>
+  </div>
+  <div class="content">
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchReportTab('sales',this)">🧾 تقرير المبيعات</button>
+      <button class="tab-btn" onclick="switchReportTab('purchases',this)">🛒 تقرير المشتريات</button>
+    </div>
+
+    <!-- ── SALES REPORT ── -->
+    <div class="tab-pane active" id="report-sales">
+      <!-- Filters -->
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:.75rem;align-items:flex-end;flex-wrap:wrap;">
+            <div class="form-group" style="margin:0;">
+              <label>من تاريخ</label>
+              <input type="date" class="form-control" id="rpt-sales-from">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>إلى تاريخ</label>
+              <input type="date" class="form-control" id="rpt-sales-to">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>الصنف</label>
+              <select class="form-control" id="rpt-sales-product">
+                <option value="">كل الأصناف</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>الفئة</label>
+              <select class="form-control" id="rpt-sales-cat">
+                <option value="">كل الفئات</option>
+                <option>كوكتيل</option><option>مشروبات باردة</option>
+                <option>مشروبات ميلك شيك</option><option>مشروبات ساخنة</option>
+                <option>بوظة</option><option>كريب</option>
+                <option>كيك فلورا وحلويات أخرى</option>
+              </select>
+            </div>
+            <div style="display:flex;gap:.5rem;">
+              <button class="btn btn-primary" onclick="renderSalesReport()">🔍 تطبيق</button>
+              <button class="btn btn-ghost" onclick="resetSalesReportFilters()">↩️</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary Cards -->
+      <div id="rpt-sales-summary" class="stats-row" style="margin-bottom:1.25rem;"></div>
+
+      <!-- Chart-like top products -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem;">
+        <div class="card">
+          <div class="card-header"><h3>🏆 أعلى الأصناف مبيعاً</h3></div>
+          <div class="card-body" id="rpt-top-products"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>📅 المبيعات حسب التاريخ</h3></div>
+          <div class="card-body" id="rpt-sales-by-date"></div>
+        </div>
+      </div>
+
+      <!-- Full Table -->
+      <div class="card">
+        <div class="card-header">
+          <h3>📋 سجل المبيعات التفصيلي</h3>
+          <button class="btn btn-outline btn-sm" onclick="printReport('rpt-sales-print-area')">🖨️ طباعة</button>
+        </div>
+        <div id="rpt-sales-print-area">
+          <div class="table-wrap"><table>
+            <thead><tr>
+              <th>#</th><th>التاريخ</th><th>الصنف</th><th>الفئة</th>
+              <th>الكمية</th><th>سعر البيع ₪</th><th>الإجمالي ₪</th><th>خصم المواد</th>
+            </tr></thead>
+            <tbody id="rpt-sales-table"></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PURCHASES REPORT ── -->
+    <div class="tab-pane" id="report-purchases">
+      <!-- Filters -->
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:.75rem;align-items:flex-end;flex-wrap:wrap;">
+            <div class="form-group" style="margin:0;">
+              <label>من تاريخ</label>
+              <input type="date" class="form-control" id="rpt-pur-from">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>إلى تاريخ</label>
+              <input type="date" class="form-control" id="rpt-pur-to">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>المورّد</label>
+              <select class="form-control" id="rpt-pur-supplier">
+                <option value="">كل الموردين</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>المادة</label>
+              <select class="form-control" id="rpt-pur-material">
+                <option value="">كل المواد</option>
+              </select>
+            </div>
+            <div style="display:flex;gap:.5rem;">
+              <button class="btn btn-primary" onclick="renderPurchasesReport()">🔍 تطبيق</button>
+              <button class="btn btn-ghost" onclick="resetPurchasesReportFilters()">↩️</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary Cards -->
+      <div id="rpt-pur-summary" class="stats-row" style="margin-bottom:1.25rem;"></div>
+
+      <!-- Top suppliers + materials -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem;">
+        <div class="card">
+          <div class="card-header"><h3>🏭 أعلى الموردين إنفاقاً</h3></div>
+          <div class="card-body" id="rpt-top-suppliers"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>📦 أكثر المواد شراءً</h3></div>
+          <div class="card-body" id="rpt-top-materials"></div>
+        </div>
+      </div>
+
+      <!-- Full Table -->
+      <div class="card">
+        <div class="card-header">
+          <h3>📋 سجل المشتريات التفصيلي</h3>
+          <button class="btn btn-outline btn-sm" onclick="printReport('rpt-pur-print-area')">🖨️ طباعة</button>
+        </div>
+        <div id="rpt-pur-print-area">
+          <div class="table-wrap"><table>
+            <thead><tr>
+              <th>رقم الفاتورة</th><th>التاريخ</th><th>المورّد</th>
+              <th>المادة</th><th>الكمية</th><th>سعر الوحدة ₪</th><th>الإجمالي ₪</th>
+            </tr></thead>
+            <tbody id="rpt-pur-table"></tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- REPORTS -->
+<div class="panel" id="panel-reports">
+  <div class="page-header">
+    <h1>📈 التقارير</h1>
+    <p>تقارير المبيعات والمشتريات مع فلترة وطباعة</p>
+  </div>
+  <div class="content">
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchReportTab('sales',this)">🧾 تقرير المبيعات</button>
+      <button class="tab-btn" onclick="switchReportTab('purchases',this)">🛒 تقرير المشتريات</button>
+    </div>
+    <div class="tab-pane active" id="report-sales">
+      <div class="card" style="margin-bottom:1rem;"><div class="card-body" style="padding:.85rem 1.25rem;">
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;">
+          <div class="form-group" style="margin:0;flex:1;min-width:130px;"><label>من تاريخ</label><input type="date" class="form-control" id="rpt-sales-from"></div>
+          <div class="form-group" style="margin:0;flex:1;min-width:130px;"><label>إلى تاريخ</label><input type="date" class="form-control" id="rpt-sales-to"></div>
+          <div class="form-group" style="margin:0;flex:1;min-width:150px;"><label>الصنف</label><select class="form-control" id="rpt-sales-product"><option value="">كل الأصناف</option></select></div>
+          <div class="form-group" style="margin:0;flex:1;min-width:130px;"><label>الفئة</label><select class="form-control" id="rpt-sales-cat"><option value="">كل الفئات</option><option>كوكتيل</option><option>مشروبات باردة</option><option>مشروبات ميلك شيك</option><option>مشروبات ساخنة</option><option>بوظة</option><option>كريب</option><option>كيك فلورا وحلويات أخرى</option></select></div>
+          <div style="display:flex;gap:.5rem;"><button class="btn btn-primary btn-sm" onclick="renderSalesReport()">🔍 تطبيق</button><button class="btn btn-ghost btn-sm" onclick="resetSalesReportFilters()">↺ إعادة</button><button class="btn btn-outline btn-sm" onclick="printReport('sales')">🖨️ طباعة</button></div>
+        </div>
+      </div></div>
+      <div id="rpt-sales-summary" class="stats-row" style="margin-bottom:1rem;"></div>
+      <div id="report-sales-printable">
+        <div style="text-align:center;margin-bottom:1rem;display:none;" id="rpt-print-header-sales"><div style="font-size:1.4rem;font-weight:900;">فلورا كوكتيل — تقرير المبيعات</div><div style="font-size:.82rem;color:#666;" id="rpt-print-date-sales"></div></div>
+        <div class="card"><div class="card-header"><h3>📋 سجل المبيعات</h3><span id="rpt-sales-count" style="font-size:.78rem;color:var(--text-muted);"></span></div>
+          <div class="table-wrap"><table><thead><tr><th>#</th><th>التاريخ</th><th>الصنف</th><th>الفئة</th><th>الكمية</th><th>سعر البيع ₪</th><th>الإجمالي ₪</th><th>المواد المخصومة</th></tr></thead><tbody id="rpt-sales-table"></tbody><tfoot id="rpt-sales-foot"></tfoot></table></div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-pane" id="report-purchases">
+      <div class="card" style="margin-bottom:1rem;"><div class="card-body" style="padding:.85rem 1.25rem;">
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;">
+          <div class="form-group" style="margin:0;flex:1;min-width:130px;"><label>من تاريخ</label><input type="date" class="form-control" id="rpt-pur-from"></div>
+          <div class="form-group" style="margin:0;flex:1;min-width:130px;"><label>إلى تاريخ</label><input type="date" class="form-control" id="rpt-pur-to"></div>
+          <div class="form-group" style="margin:0;flex:1;min-width:150px;"><label>المورّد</label><select class="form-control" id="rpt-pur-supplier"><option value="">كل الموردين</option></select></div>
+          <div class="form-group" style="margin:0;flex:1;min-width:150px;"><label>المادة</label><select class="form-control" id="rpt-pur-material"><option value="">كل المواد</option></select></div>
+          <div style="display:flex;gap:.5rem;"><button class="btn btn-primary btn-sm" onclick="renderPurchasesReport()">🔍 تطبيق</button><button class="btn btn-ghost btn-sm" onclick="resetPurchasesReportFilters()">↺ إعادة</button><button class="btn btn-outline btn-sm" onclick="printReport('purchases')">🖨️ طباعة</button></div>
+        </div>
+      </div></div>
+      <div id="rpt-pur-summary" class="stats-row" style="margin-bottom:1rem;"></div>
+      <div id="report-purchases-printable">
+        <div style="text-align:center;margin-bottom:1rem;display:none;" id="rpt-print-header-pur"><div style="font-size:1.4rem;font-weight:900;">فلورا كوكتيل — تقرير المشتريات</div><div style="font-size:.82rem;color:#666;" id="rpt-print-date-pur"></div></div>
+        <div class="card"><div class="card-header"><h3>📋 سجل الفواتير</h3><span id="rpt-pur-count" style="font-size:.78rem;color:var(--text-muted);"></span></div>
+          <div class="table-wrap"><table><thead><tr><th>#</th><th>رقم الفاتورة</th><th>التاريخ</th><th>المورّد</th><th>المادة</th><th>الكمية</th><th>سعر الوحدة ₪</th><th>الإجمالي ₪</th></tr></thead><tbody id="rpt-pur-table"></tbody><tfoot id="rpt-pur-foot"></tfoot></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 <div class="panel" id="panel-chat">
   <div class="page-header"><h1>💬 الدردشة</h1><p>مساحة مشتركة للتواصل</p></div>
   <div class="content">
@@ -1644,7 +1858,9 @@ function showPanel(name,btn){
   if(name==='alerts') renderAlerts();
   if(name==='profile') updateProfileUI();
   if(name==='users'){if(!Auth.isAdmin()){showPanel('dashboard',null);showToast('غير مسموح','warning');return;}renderUsersList();}
+  if(name==='reports'){initReportsFilters();renderSalesReport();}
   if(name==='chat'){renderChatUsersList();renderChatMessages();}
+  if(name==='reports') initReportsPanel();
 }
 
 /* ════════════════════════════════════════
@@ -2494,6 +2710,470 @@ function renderProfitTable(){
     <div class="stat-card"><div class="stat-val">${tRev>0?((tProfit/tRev)*100).toFixed(1):0}%</div><div class="stat-label">هامش الربح</div></div>
     <div class="stat-card"><div class="stat-val" style="color:var(--orange);">${totalFixed.toFixed(0)}</div><div class="stat-label">إجمالي التكاليف الثابتة ₪</div></div>
     <div class="stat-card"><div class="stat-val" style="color:var(--orange);">${tFixed.toFixed(0)}</div><div class="stat-label">التكاليف الثابتة الموزعة ₪</div></div>`;
+}
+
+
+/* ════════════════════════════════════════
+   REPORTS
+════════════════════════════════════════ */
+function switchReportTab(tab, btn) {
+  document.querySelectorAll('#panel-reports .tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#panel-reports .tab-pane').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('report-'+tab).classList.add('active');
+  if(tab==='sales') renderSalesReport();
+  if(tab==='purchases') renderPurchasesReport();
+}
+
+function initReportsFilters() {
+  // Populate product filter
+  const ps = document.getElementById('rpt-sales-product');
+  if(ps) {
+    ps.innerHTML = '<option value="">كل الأصناف</option>';
+    AppData.products.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p.id; o.textContent = p.name;
+      ps.appendChild(o);
+    });
+  }
+  // Populate supplier filter
+  const ss = document.getElementById('rpt-pur-supplier');
+  if(ss) {
+    ss.innerHTML = '<option value="">كل الموردين</option>';
+    AppData.suppliers.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s.name; o.textContent = s.name;
+      ss.appendChild(o);
+    });
+  }
+  // Populate material filter
+  const ms = document.getElementById('rpt-pur-material');
+  if(ms) {
+    ms.innerHTML = '<option value="">كل المواد</option>';
+    AppData.materials.forEach(m => {
+      const o = document.createElement('option');
+      o.value = m.id; o.textContent = m.name;
+      ms.appendChild(o);
+    });
+  }
+}
+
+function resetSalesReportFilters() {
+  document.getElementById('rpt-sales-from').value = '';
+  document.getElementById('rpt-sales-to').value = '';
+  document.getElementById('rpt-sales-product').value = '';
+  document.getElementById('rpt-sales-cat').value = '';
+  renderSalesReport();
+}
+
+function resetPurchasesReportFilters() {
+  document.getElementById('rpt-pur-from').value = '';
+  document.getElementById('rpt-pur-to').value = '';
+  document.getElementById('rpt-pur-supplier').value = '';
+  document.getElementById('rpt-pur-material').value = '';
+  renderPurchasesReport();
+}
+
+function renderSalesReport() {
+  const from = document.getElementById('rpt-sales-from')?.value;
+  const to = document.getElementById('rpt-sales-to')?.value;
+  const prodId = document.getElementById('rpt-sales-product')?.value;
+  const cat = document.getElementById('rpt-sales-cat')?.value;
+
+  let logs = [...AppData.salesLog];
+  if(from) logs = logs.filter(s => s.date >= from);
+  if(to)   logs = logs.filter(s => s.date <= to);
+  if(prodId) logs = logs.filter(s => String(s.productId) === String(prodId));
+  if(cat) {
+    const catProds = AppData.products.filter(p=>p.cat===cat).map(p=>p.id);
+    logs = logs.filter(s => catProds.includes(s.productId));
+  }
+
+  // Summary
+  const totalRev = logs.reduce((s,l)=>s+l.total, 0);
+  const totalQty = logs.reduce((s,l)=>s+l.qty, 0);
+  const uniqueDays = new Set(logs.map(l=>l.date)).size;
+  const avgPerDay = uniqueDays > 0 ? totalRev/uniqueDays : 0;
+
+  document.getElementById('rpt-sales-summary').innerHTML = `
+    <div class="stat-card"><div class="stat-val" style="color:var(--green);">${totalRev.toFixed(2)}</div><div class="stat-label">إجمالي الإيرادات ₪</div><div class="stat-icon">💰</div></div>
+    <div class="stat-card"><div class="stat-val">${totalQty.toLocaleString()}</div><div class="stat-label">إجمالي الوحدات</div><div class="stat-icon">📦</div></div>
+    <div class="stat-card"><div class="stat-val">${logs.length}</div><div class="stat-label">عدد السجلات</div><div class="stat-icon">📋</div></div>
+    <div class="stat-card"><div class="stat-val">${uniqueDays}</div><div class="stat-label">أيام بيع</div><div class="stat-icon">📅</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--blue);">${avgPerDay.toFixed(2)}</div><div class="stat-label">متوسط اليومي ₪</div><div class="stat-icon">📈</div></div>`;
+
+  // Top products bar chart
+  const byProd = {};
+  logs.forEach(s => {
+    if(!byProd[s.productName]) byProd[s.productName] = {qty:0, rev:0};
+    byProd[s.productName].qty += s.qty;
+    byProd[s.productName].rev += s.total;
+  });
+  const topProds = Object.entries(byProd).sort((a,b)=>b[1].rev-a[1].rev).slice(0,8);
+  const maxRev = topProds[0]?.[1].rev || 1;
+  document.getElementById('rpt-top-products').innerHTML = topProds.length ? topProds.map(([name, d])=>`
+    <div style="margin-bottom:.6rem;">
+      <div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:3px;">
+        <span style="font-weight:600;">${name}</span>
+        <span style="color:var(--green);font-weight:700;">${d.rev.toFixed(2)} ₪</span>
+      </div>
+      <div style="background:rgba(255,255,255,0.06);border-radius:4px;height:8px;overflow:hidden;">
+        <div style="height:100%;width:${(d.rev/maxRev*100).toFixed(1)}%;background:linear-gradient(90deg,var(--red),var(--red-mid));border-radius:4px;transition:width .3s;"></div>
+      </div>
+      <div style="font-size:.68rem;color:var(--text-muted);margin-top:2px;">${d.qty} وحدة</div>
+    </div>`).join('') : '<div style="color:var(--text-muted);text-align:center;padding:1rem;">لا توجد بيانات</div>';
+
+  // Sales by date
+  const byDate = {};
+  logs.forEach(s => { byDate[s.date] = (byDate[s.date]||0) + s.total; });
+  const dateEntries = Object.entries(byDate).sort((a,b)=>a[0].localeCompare(b[0])).slice(-10);
+  const maxDateRev = Math.max(...dateEntries.map(e=>e[1]), 1);
+  document.getElementById('rpt-sales-by-date').innerHTML = dateEntries.length ? dateEntries.map(([date, rev])=>`
+    <div style="margin-bottom:.5rem;display:flex;align-items:center;gap:.5rem;">
+      <div style="font-size:.72rem;color:var(--text-muted);min-width:80px;">${date}</div>
+      <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:4px;height:8px;">
+        <div style="height:100%;width:${(rev/maxDateRev*100).toFixed(1)}%;background:linear-gradient(90deg,var(--green-dark),var(--green));border-radius:4px;"></div>
+      </div>
+      <div style="font-size:.72rem;font-weight:700;color:var(--green);min-width:60px;text-align:left;">${rev.toFixed(0)} ₪</div>
+    </div>`).join('') : '<div style="color:var(--text-muted);text-align:center;padding:1rem;">لا توجد بيانات</div>';
+
+  // Full table
+  const tbody = document.getElementById('rpt-sales-table');
+  const sorted = [...logs].reverse();
+  tbody.innerHTML = sorted.map((s,i)=>{
+    const p = AppData.products.find(x=>x.id===s.productId);
+    const dedStr = s.materialDeductions?.length
+      ? s.materialDeductions.map(d=>`<span class="deduction-badge">-${d.qty.toFixed(2)} ${d.matName}</span>`).join(' ')
+      : '—';
+    return `<tr>
+      <td><span class="badge badge-gray">${sorted.length-i}</span></td>
+      <td>${s.date}</td>
+      <td style="font-weight:600;">${s.productName}</td>
+      <td><span class="badge badge-blue">${p?.cat||'—'}</span></td>
+      <td style="font-weight:700;">${s.qty}</td>
+      <td>${s.price}</td>
+      <td style="font-weight:700;color:var(--green);">${s.total.toFixed(2)}</td>
+      <td>${dedStr}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem;">لا توجد سجلات</td></tr>';
+}
+
+function renderPurchasesReport() {
+  const from = document.getElementById('rpt-pur-from')?.value;
+  const to = document.getElementById('rpt-pur-to')?.value;
+  const supplier = document.getElementById('rpt-pur-supplier')?.value;
+  const matId = document.getElementById('rpt-pur-material')?.value;
+
+  // Flatten invoices to rows
+  let rows = [];
+  AppData.invoices.forEach(inv => {
+    inv.items.forEach(item => {
+      rows.push({inv, item});
+    });
+  });
+
+  if(from) rows = rows.filter(r => r.inv.date >= from);
+  if(to)   rows = rows.filter(r => r.inv.date <= to);
+  if(supplier) rows = rows.filter(r => r.inv.supplier === supplier);
+  if(matId) rows = rows.filter(r => r.item.matId === matId);
+
+  const totalSpend = rows.reduce((s,r)=>s+r.item.total, 0);
+  const totalQty = rows.reduce((s,r)=>s+r.item.qty, 0);
+  const uniqueInvs = new Set(rows.map(r=>r.inv.id)).size;
+  const uniqueSuppliers = new Set(rows.map(r=>r.inv.supplier)).size;
+
+  document.getElementById('rpt-pur-summary').innerHTML = `
+    <div class="stat-card"><div class="stat-val" style="color:var(--red);">${totalSpend.toFixed(2)}</div><div class="stat-label">إجمالي المشتريات ₪</div><div class="stat-icon">💸</div></div>
+    <div class="stat-card"><div class="stat-val">${totalQty.toLocaleString()}</div><div class="stat-label">إجمالي الكميات</div><div class="stat-icon">📦</div></div>
+    <div class="stat-card"><div class="stat-val">${uniqueInvs}</div><div class="stat-label">عدد الفواتير</div><div class="stat-icon">🧾</div></div>
+    <div class="stat-card"><div class="stat-val">${uniqueSuppliers}</div><div class="stat-label">عدد الموردين</div><div class="stat-icon">🏭</div></div>`;
+
+  // Top suppliers
+  const bySupplier = {};
+  rows.forEach(r => { bySupplier[r.inv.supplier] = (bySupplier[r.inv.supplier]||0) + r.item.total; });
+  const topSup = Object.entries(bySupplier).sort((a,b)=>b[1]-a[1]);
+  const maxSup = topSup[0]?.[1] || 1;
+  document.getElementById('rpt-top-suppliers').innerHTML = topSup.length ? topSup.map(([name, val])=>`
+    <div style="margin-bottom:.6rem;">
+      <div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:3px;">
+        <span style="font-weight:600;">${name}</span>
+        <span style="color:var(--red);font-weight:700;">${val.toFixed(2)} ₪</span>
+      </div>
+      <div style="background:rgba(255,255,255,0.06);border-radius:4px;height:8px;overflow:hidden;">
+        <div style="height:100%;width:${(val/maxSup*100).toFixed(1)}%;background:linear-gradient(90deg,var(--red-dark),var(--red));border-radius:4px;"></div>
+      </div>
+    </div>`).join('') : '<div style="color:var(--text-muted);text-align:center;padding:1rem;">لا توجد بيانات</div>';
+
+  // Top materials
+  const byMat = {};
+  rows.forEach(r => {
+    if(!byMat[r.item.matName]) byMat[r.item.matName] = {qty:0, total:0};
+    byMat[r.item.matName].qty += r.item.qty;
+    byMat[r.item.matName].total += r.item.total;
+  });
+  const topMat = Object.entries(byMat).sort((a,b)=>b[1].total-a[1].total);
+  const maxMat = topMat[0]?.[1].total || 1;
+  document.getElementById('rpt-top-materials').innerHTML = topMat.length ? topMat.map(([name, d])=>`
+    <div style="margin-bottom:.6rem;">
+      <div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:3px;">
+        <span style="font-weight:600;">${name}</span>
+        <span style="color:var(--orange);font-weight:700;">${d.total.toFixed(2)} ₪</span>
+      </div>
+      <div style="background:rgba(255,255,255,0.06);border-radius:4px;height:8px;overflow:hidden;">
+        <div style="height:100%;width:${(d.total/maxMat*100).toFixed(1)}%;background:linear-gradient(90deg,#92400e,var(--orange));border-radius:4px;"></div>
+      </div>
+      <div style="font-size:.68rem;color:var(--text-muted);margin-top:2px;">${d.qty.toLocaleString()} وحدة</div>
+    </div>`).join('') : '<div style="color:var(--text-muted);text-align:center;padding:1rem;">لا توجد بيانات</div>';
+
+  // Full table
+  const tbody = document.getElementById('rpt-pur-table');
+  tbody.innerHTML = rows.map(r=>`<tr>
+    <td><span class="badge badge-red">${r.inv.id}</span></td>
+    <td>${r.inv.date||'—'}</td>
+    <td>${r.inv.supplier}</td>
+    <td><span class="badge badge-orange">${r.item.matId}</span> ${r.item.matName}</td>
+    <td style="font-weight:700;">${r.item.qty.toLocaleString()}</td>
+    <td>${r.item.price.toFixed(3)}</td>
+    <td style="font-weight:700;color:var(--green);">${r.item.total.toFixed(2)}</td>
+  </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;">لا توجد فواتير</td></tr>';
+}
+
+function printReport(areaId) {
+  const content = document.getElementById(areaId)?.innerHTML;
+  if(!content) return;
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar">
+  <head><meta charset="UTF-8"><title>تقرير فلورا كوكتيل</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body{font-family:'Cairo',sans-serif;direction:rtl;padding:2rem;color:#111;}
+    table{width:100%;border-collapse:collapse;margin-top:1rem;}
+    th{background:#C8102E;color:#fff;padding:.5rem .75rem;text-align:right;font-size:.8rem;}
+    td{padding:.45rem .75rem;border-bottom:1px solid #eee;font-size:.8rem;}
+    tr:nth-child(even) td{background:#fafafa;}
+    .header{text-align:center;margin-bottom:2rem;}
+    .header h1{font-size:1.5rem;color:#C8102E;}
+    .header p{color:#666;font-size:.85rem;}
+    @media print{body{padding:0;}}
+  </style></head>
+  <body>
+  <div class="header">
+    <h1>🌹 فلورا كوكتيل</h1>
+    <p>تاريخ الطباعة: ${new Date().toLocaleDateString('ar')}</p>
+  </div>
+  ${content}
+  <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`);
+  w.document.close();
+}
+
+
+/* ════════════════════════════════════════
+   REPORTS
+════════════════════════════════════════ */
+function switchReportTab(tab, btn) {
+  document.querySelectorAll('#panel-reports .tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#panel-reports .tab-pane').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('report-'+tab).classList.add('active');
+  if(tab==='sales') renderSalesReport();
+  if(tab==='purchases') renderPurchasesReport();
+}
+
+function initReportsPanel() {
+  // Populate product select
+  const pSel = document.getElementById('rpt-sales-product');
+  if(pSel) {
+    pSel.innerHTML = '<option value="">كل الأصناف</option>';
+    AppData.products.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p.id; o.textContent = p.name;
+      pSel.appendChild(o);
+    });
+  }
+  // Populate supplier select
+  const supSel = document.getElementById('rpt-pur-supplier');
+  if(supSel) {
+    supSel.innerHTML = '<option value="">كل الموردين</option>';
+    AppData.suppliers.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s.name; o.textContent = s.name;
+      supSel.appendChild(o);
+    });
+  }
+  // Populate material select
+  const matSel = document.getElementById('rpt-pur-material');
+  if(matSel) {
+    matSel.innerHTML = '<option value="">كل المواد</option>';
+    AppData.materials.forEach(m => {
+      const o = document.createElement('option');
+      o.value = m.id; o.textContent = m.name;
+      matSel.appendChild(o);
+    });
+  }
+  renderSalesReport();
+}
+
+function renderSalesReport() {
+  const from = document.getElementById('rpt-sales-from')?.value || '';
+  const to   = document.getElementById('rpt-sales-to')?.value || '';
+  const prod = document.getElementById('rpt-sales-product')?.value || '';
+  const cat  = document.getElementById('rpt-sales-cat')?.value || '';
+
+  let logs = [...AppData.salesLog].reverse();
+  if(from) logs = logs.filter(s => s.date >= from);
+  if(to)   logs = logs.filter(s => s.date <= to);
+  if(prod) logs = logs.filter(s => String(s.productId) === String(prod));
+  if(cat) {
+    const catProds = AppData.products.filter(p=>p.cat===cat).map(p=>p.id);
+    logs = logs.filter(s => catProds.includes(s.productId));
+  }
+
+  // Summary
+  const totalRev = logs.reduce((s,l)=>s+l.total,0);
+  const totalQty = logs.reduce((s,l)=>s+l.qty,0);
+  const uniqueDays = new Set(logs.map(l=>l.date)).size;
+  const topProduct = (() => {
+    const byProd = {};
+    logs.forEach(l => { byProd[l.productName] = (byProd[l.productName]||0) + l.total; });
+    return Object.entries(byProd).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—';
+  })();
+
+  const sumEl = document.getElementById('rpt-sales-summary');
+  if(sumEl) sumEl.innerHTML = `
+    <div class="stat-card"><div class="stat-val" style="color:var(--green);">${totalRev.toFixed(2)}</div><div class="stat-label">إجمالي الإيرادات ₪</div><div class="stat-icon">💰</div></div>
+    <div class="stat-card"><div class="stat-val">${totalQty.toLocaleString()}</div><div class="stat-label">إجمالي الوحدات المباعة</div><div class="stat-icon">📦</div></div>
+    <div class="stat-card"><div class="stat-val">${logs.length}</div><div class="stat-label">عدد سجلات البيع</div><div class="stat-icon">🧾</div></div>
+    <div class="stat-card"><div class="stat-val">${uniqueDays}</div><div class="stat-label">أيام البيع</div><div class="stat-icon">📅</div></div>
+    <div class="stat-card"><div class="stat-val" style="font-size:1rem;color:var(--red);">${topProduct}</div><div class="stat-label">أعلى مبيعاً</div><div class="stat-icon">🏆</div></div>
+    <div class="stat-card"><div class="stat-val">${totalQty>0?(totalRev/totalQty).toFixed(2):0}</div><div class="stat-label">متوسط سعر البيع ₪</div><div class="stat-icon">📊</div></div>`;
+
+  const countEl = document.getElementById('rpt-sales-count');
+  if(countEl) countEl.textContent = `${logs.length} سجل`;
+
+  const tbody = document.getElementById('rpt-sales-table');
+  if(!tbody) return;
+  tbody.innerHTML = logs.map((s,i) => {
+    const p = AppData.products.find(x=>x.id===s.productId);
+    const dedStr = s.materialDeductions?.length
+      ? s.materialDeductions.map(d=>`<span class="deduction-badge">-${d.qty.toFixed(2)} ${d.unit||''} ${d.matName}</span>`).join(' ')
+      : '<span style="color:var(--text-dim);">—</span>';
+    return `<tr>
+      <td><span class="badge badge-gray">${i+1}</span></td>
+      <td>${s.date}</td>
+      <td style="font-weight:600;">${s.productName}</td>
+      <td><span class="badge badge-blue">${p?.cat||'—'}</span></td>
+      <td style="font-weight:700;">${s.qty}</td>
+      <td>${s.price}</td>
+      <td style="font-weight:700;color:var(--green);">${s.total.toFixed(2)}</td>
+      <td>${dedStr}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem;">لا توجد بيانات للفترة المحددة</td></tr>';
+
+  // Footer totals
+  const tfoot = document.getElementById('rpt-sales-foot');
+  if(tfoot) tfoot.innerHTML = `<tr style="font-weight:700;background:rgba(34,197,94,0.08);border-top:2px solid rgba(34,197,94,0.2);">
+    <td colspan="4" style="text-align:right;padding:.75rem 1rem;">الإجمالي</td>
+    <td style="padding:.75rem 1rem;">${totalQty}</td>
+    <td></td>
+    <td style="color:var(--green);padding:.75rem 1rem;">${totalRev.toFixed(2)}</td>
+    <td></td>
+  </tr>`;
+}
+
+function resetSalesReportFilters() {
+  document.getElementById('rpt-sales-from').value='';
+  document.getElementById('rpt-sales-to').value='';
+  document.getElementById('rpt-sales-product').value='';
+  document.getElementById('rpt-sales-cat').value='';
+  renderSalesReport();
+}
+
+function renderPurchasesReport() {
+  const from = document.getElementById('rpt-pur-from')?.value || '';
+  const to   = document.getElementById('rpt-pur-to')?.value || '';
+  const sup  = document.getElementById('rpt-pur-supplier')?.value || '';
+  const mat  = document.getElementById('rpt-pur-material')?.value || '';
+
+  let rows = [];
+  AppData.invoices.forEach(inv => {
+    inv.items.forEach(item => {
+      rows.push({ inv, item });
+    });
+  });
+
+  if(from) rows = rows.filter(r => r.inv.date >= from);
+  if(to)   rows = rows.filter(r => r.inv.date <= to);
+  if(sup)  rows = rows.filter(r => r.inv.supplier === sup);
+  if(mat)  rows = rows.filter(r => r.item.matId === mat);
+
+  rows.sort((a,b) => b.inv.date.localeCompare(a.inv.date));
+
+  const totalSpend = rows.reduce((s,r)=>s+r.item.total,0);
+  const totalQty   = rows.reduce((s,r)=>s+r.item.qty,0);
+  const uniqueInvs = new Set(rows.map(r=>r.inv.id)).size;
+  const topSupplier = (() => {
+    const bySup = {};
+    rows.forEach(r => { bySup[r.inv.supplier] = (bySup[r.inv.supplier]||0) + r.item.total; });
+    return Object.entries(bySup).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—';
+  })();
+
+  const sumEl = document.getElementById('rpt-pur-summary');
+  if(sumEl) sumEl.innerHTML = `
+    <div class="stat-card"><div class="stat-val" style="color:var(--red);">${totalSpend.toFixed(2)}</div><div class="stat-label">إجمالي المشتريات ₪</div><div class="stat-icon">🛒</div></div>
+    <div class="stat-card"><div class="stat-val">${totalQty.toLocaleString()}</div><div class="stat-label">إجمالي الكميات المشتراة</div><div class="stat-icon">📦</div></div>
+    <div class="stat-card"><div class="stat-val">${uniqueInvs}</div><div class="stat-label">عدد الفواتير</div><div class="stat-icon">🧾</div></div>
+    <div class="stat-card"><div class="stat-val">${rows.length}</div><div class="stat-label">عدد البنود</div><div class="stat-icon">📋</div></div>
+    <div class="stat-card"><div class="stat-val" style="font-size:1rem;color:var(--orange);">${topSupplier}</div><div class="stat-label">أكثر مورّد شراءً</div><div class="stat-icon">🏭</div></div>
+    <div class="stat-card"><div class="stat-val">${totalQty>0?(totalSpend/totalQty).toFixed(3):0}</div><div class="stat-label">متوسط سعر الوحدة ₪</div><div class="stat-icon">📊</div></div>`;
+
+  const countEl = document.getElementById('rpt-pur-count');
+  if(countEl) countEl.textContent = `${rows.length} بند`;
+
+  const tbody = document.getElementById('rpt-pur-table');
+  if(!tbody) return;
+  tbody.innerHTML = rows.map((r,i) => `<tr>
+    <td><span class="badge badge-gray">${i+1}</span></td>
+    <td><span class="badge badge-red">${r.inv.id}</span></td>
+    <td>${r.inv.date}</td>
+    <td>${r.inv.supplier}</td>
+    <td><span class="badge badge-orange">${r.item.matId}</span> ${r.item.matName}</td>
+    <td style="font-weight:700;">${r.item.qty.toLocaleString()}</td>
+    <td>${r.item.price.toFixed(3)}</td>
+    <td style="font-weight:700;color:var(--green);">${r.item.total.toFixed(2)}</td>
+  </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem;">لا توجد بيانات للفترة المحددة</td></tr>';
+
+  const tfoot = document.getElementById('rpt-pur-foot');
+  if(tfoot) tfoot.innerHTML = `<tr style="font-weight:700;background:rgba(200,16,46,0.06);border-top:2px solid rgba(200,16,46,0.2);">
+    <td colspan="5" style="text-align:right;padding:.75rem 1rem;">الإجمالي</td>
+    <td style="padding:.75rem 1rem;">${totalQty.toLocaleString()}</td>
+    <td></td>
+    <td style="color:var(--green);padding:.75rem 1rem;">${totalSpend.toFixed(2)}</td>
+  </tr>`;
+}
+
+function resetPurchasesReportFilters() {
+  document.getElementById('rpt-pur-from').value='';
+  document.getElementById('rpt-pur-to').value='';
+  document.getElementById('rpt-pur-supplier').value='';
+  document.getElementById('rpt-pur-material').value='';
+  renderPurchasesReport();
+}
+
+function printReport(type) {
+  const now = new Date().toLocaleDateString('ar-SA', {year:'numeric',month:'long',day:'numeric'});
+  if(type==='sales') {
+    document.getElementById('rpt-print-header-sales').style.display='block';
+    document.getElementById('rpt-print-date-sales').textContent = 'تاريخ الطباعة: ' + now;
+  } else {
+    document.getElementById('rpt-print-header-pur').style.display='block';
+    document.getElementById('rpt-print-date-pur').textContent = 'تاريخ الطباعة: ' + now;
+  }
+  setTimeout(()=>{ window.print(); }, 200);
+  setTimeout(()=>{
+    if(type==='sales') document.getElementById('rpt-print-header-sales').style.display='none';
+    else document.getElementById('rpt-print-header-pur').style.display='none';
+  }, 1000);
 }
 
 /* ════════════════════════════════════════
