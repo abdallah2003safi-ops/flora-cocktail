@@ -802,7 +802,7 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
         <h3>📋 سجل المبيعات</h3>
         <div style="display:flex;gap:.5rem;">
           <input type="text" class="form-control" id="salesLogSearch" placeholder="بحث..." oninput="renderSalesLog()" style="max-width:200px;">
-          <button class="btn btn-danger btn-sm admin-only" onclick="clearAllSales()">🗑️ مسح الكل</button>
+          <button class="btn btn-ghost btn-sm admin-only" onclick="clearAllSales()" style="color:#DC2626;border-color:rgba(220,38,38,0.3);" title="للأدمن فقط">🗑️ مسح الكل</button>
         </div>
       </div>
       <div class="sales-summary" id="salesSummary"></div>
@@ -1747,11 +1747,18 @@ function clearSaleQtys() {
 }
 
 async function clearAllSales() {
-  confirmAction('مسح كل المبيعات','هل أنت متأكد؟ لن يمكن التراجع.','⚠️', async()=>{
-    AppData.salesLog = [];
-    await saveData('salesLog', AppData.salesLog);
-    renderSalesLog(); renderDashboard(); updateAlertBadge();
-    showToast('تم مسح سجل المبيعات','success');
+  confirmAction('🚨 تحذير — مسح كل المبيعات',
+    'سيتم مسح جميع سجلات المبيعات نهائياً ولا يمكن التراجع!',
+    '🚨', async () => {
+      const input = prompt('اكتب كلمة "مسح" للتأكيد النهائي:');
+      if (!input || input.trim() !== 'مسح') {
+        showToast('تم الإلغاء ✅', 'success');
+        return;
+      }
+      AppData.salesLog = [];
+      await saveData('salesLog', AppData.salesLog);
+      renderSalesLog(); renderDashboard(); updateAlertBadge();
+      showToast('تم مسح سجل المبيعات', 'success');
   });
 }
 
