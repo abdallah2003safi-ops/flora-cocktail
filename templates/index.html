@@ -1785,8 +1785,8 @@ function renderSalesLog() {
   const tbody = document.getElementById('salesLogTable');
   if(!tbody) return;
   tbody.innerHTML = logs.map((s,i)=>{
-    const dedStr = s.materialDeductions.length
-      ? s.materialDeductions.map(d=>`<span class="deduction-badge">-${d.qty.toFixed(2)} ${d.unit||''} ${d.matName}</span>`).join(' ')
+    const dedStr = (s.materialDeductions||[]).length
+      ? (s.materialDeductions||[]).map(d=>`<span class="deduction-badge">-${d.qty.toFixed(2)} ${d.unit||''} ${d.matName}</span>`).join(' ')
       : '<span style="color:var(--text-dim);">—</span>';
     return `<tr>
       <td><span class="badge badge-gray">${AppData.salesLog.length-i}</span></td>
@@ -2185,8 +2185,8 @@ function renderDashboard(){
   if(!tbody) return;
   tbody.innerHTML='';
   [...AppData.salesLog].reverse().slice(0,8).forEach((s,i)=>{
-    const dedStr=s.materialDeductions.length
-      ? s.materialDeductions.map(d=>`<span class="deduction-badge">-${d.qty.toFixed(2)} ${d.matName}</span>`).join(' ')
+    const dedStr=(s.materialDeductions||[]).length
+      ? (s.materialDeductions||[]).map(d=>`<span class="deduction-badge">-${d.qty.toFixed(2)} ${d.matName}</span>`).join(' ')
       : '—';
     const tr=document.createElement('tr');
     tr.innerHTML=`<td><span class="badge badge-gray">${AppData.salesLog.length-i}</span></td>
@@ -3091,8 +3091,8 @@ function renderSalesReport() {
   if(!tbody) return;
   tbody.innerHTML = logs.map((s,i) => {
     const p = AppData.products.find(x=>x.id===s.productId);
-    const dedStr = s.materialDeductions?.length
-      ? s.materialDeductions.map(d=>`<span class="deduction-badge">-${d.qty.toFixed(2)} ${d.unit||''} ${d.matName}</span>`).join(' ')
+    const dedStr = (s.materialDeductions||[]).length
+      ? (s.materialDeductions||[]).map(d=>`<span class="deduction-badge">-${d.qty.toFixed(2)} ${d.unit||''} ${d.matName}</span>`).join(' ')
       : '<span style="color:var(--text-dim);">—</span>';
     return `<tr>
       <td><span class="badge badge-gray">${i+1}</span></td>
