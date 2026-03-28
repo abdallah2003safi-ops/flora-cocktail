@@ -832,7 +832,7 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
           <div class="table-wrap"><table>
             <thead><tr>
               <th>#</th><th>التاريخ</th><th>الصنف</th><th>الفئة</th>
-              <th>الكمية</th><th>سعر البيع ₪</th><th>الإجمالي ₪</th><th>خصم المواد</th>
+              <th>الكمية</th><th>سعر البيع ₪</th><th>الإجمالي ₪</th><th>خصم المواد</th><th>إجراء</th>
             </tr></thead>
             <tbody id="rpt-sales-table"></tbody>
           </table></div>
@@ -910,6 +910,18 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
 </div>
 
 <!-- REPORTS -->
+
+
+<!-- EDIT SALE MODAL -->
+<div class="modal-overlay" id="editSaleModal">
+  <div class="modal" style="max-width:580px;">
+    <div class="modal-header">
+      <div class="modal-title">✏️ تعديل سجل البيع</div>
+      <button class="modal-close" onclick="closeModal('editSaleModal')">×</button>
+    </div>
+    <div id="editSaleModalBody"></div>
+  </div>
+</div>
 
 <!-- LOGO MODAL -->
 <div class="modal-overlay" id="logoModal">
@@ -1472,7 +1484,12 @@ function renderSalesLog() {
       <td>${s.price}</td>
       <td style="font-weight:700;color:var(--green);">${s.total.toFixed(2)}</td>
       <td>${dedStr}</td>
-      <td><button class="btn btn-danger btn-sm btn-icon" onclick="deleteSaleEntry(${s.id})">🗑️</button></td>
+      <td>
+        <div class="action-btns">
+          <button class="btn btn-warning btn-sm btn-icon" onclick="openEditSaleModal(${s.id})" title="تعديل">✏️</button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteSaleEntry(${s.id})" title="حذف">🗑️</button>
+        </div>
+      </td>
     </tr>`;
   }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem;">لا توجد مبيعات بعد</td></tr>';
 }
@@ -2756,6 +2773,12 @@ function renderSalesReport() {
       <td>${s.price}</td>
       <td style="font-weight:700;color:var(--green);">${s.total.toFixed(2)}</td>
       <td>${dedStr}</td>
+      <td>
+        <div class="action-btns">
+          <button class="btn btn-warning btn-sm btn-icon" onclick="openEditSaleModal(${s.id})" title="تعديل">✏️</button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteSaleEntry(${s.id})" title="حذف">🗑️</button>
+        </div>
+      </td>
     </tr>`;
   }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem;">لا توجد بيانات للفترة المحددة</td></tr>';
 
@@ -2953,6 +2976,111 @@ ${tableHTML}
 <script>window.onload=()=>{setTimeout(()=>{window.print();},400);}<\/script>
 </body></html>`);
   w.document.close();
+}
+
+
+/* ════════════════════════════════════════
+   EDIT SALE ENTRY
+   - يحذف الخصم القديم ويعيد حساب الجديد
+════════════════════════════════════════ */
+function openEditSaleModal(saleId) {
+  const sale = AppData.salesLog.find(s => s.id === saleId);
+  if (!sale) return;
+
+  const p = AppData.products.find(x => x.id === sale.productId);
+  const prodOpts = AppData.products.map(x =>
+    `<option value="${x.id}" ${x.id === sale.productId ? 'selected' : ''}>${x.name} — ${x.price} ₪</option>`
+  ).join('');
+
+  document.getElementById('editSaleModalBody').innerHTML = `
+    <div class="form-grid" style="margin-bottom:1rem;">
+      <div class="form-group">
+        <label>التاريخ</label>
+        <input type="date" class="form-control" id="es-date" value="${sale.date}">
+      </div>
+      <div class="form-group">
+        <label>الكمية</label>
+        <input type="number" class="form-control" id="es-qty" value="${sale.qty}" min="1" step="1">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>الصنف</label>
+      <select class="form-control" id="es-product" onchange="updateEditSalePrice()">${prodOpts}</select>
+    </div>
+    <div class="form-group">
+      <label>سعر البيع ₪</label>
+      <input type="number" class="form-control" id="es-price" value="${sale.price}" step="0.01">
+    </div>
+
+    <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:10px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.8rem;">
+      <div style="font-weight:700;margin-bottom:.35rem;color:var(--orange);">⚠️ تنبيه خصم المواد الخام</div>
+      <div style="color:var(--text-muted);">عند الحفظ، سيتم <strong style="color:#fca5a5;">حذف الخصم القديم</strong> وإعادة حساب خصم جديد بناءً على الكمية والصنف الجديدين.</div>
+      <div style="margin-top:.4rem;color:var(--text-muted);">الخصم الحالي: ${sale.materialDeductions?.map(d=>`${d.qty.toFixed(2)} ${d.unit||''} ${d.matName}`).join('، ') || 'لا يوجد'}</div>
+    </div>
+
+    <div style="display:flex;gap:.75rem;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeModal('editSaleModal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveEditSale(${saleId})">💾 حفظ التعديلات</button>
+    </div>`;
+
+  openModal('editSaleModal');
+}
+
+function updateEditSalePrice() {
+  const pid = parseInt(document.getElementById('es-product')?.value);
+  const p = AppData.products.find(x => x.id === pid);
+  if (p) document.getElementById('es-price').value = p.price;
+}
+
+async function saveEditSale(saleId) {
+  const idx = AppData.salesLog.findIndex(s => s.id === saleId);
+  if (idx < 0) return;
+
+  const newDate  = document.getElementById('es-date').value;
+  const newQty   = parseInt(document.getElementById('es-qty').value) || 1;
+  const newPid   = parseInt(document.getElementById('es-product').value);
+  const newPrice = parseFloat(document.getElementById('es-price').value) || 0;
+  const newProd  = AppData.products.find(x => x.id === newPid);
+
+  if (!newProd) { showToast('الصنف غير موجود', 'warning'); return; }
+
+  // Build new material deductions
+  const newDeductions = [];
+  (newProd.rawMaterials || []).forEach(rm => {
+    const mat = AppData.materials.find(m => m.id === rm.matId);
+    if (mat) {
+      newDeductions.push({
+        matId: rm.matId,
+        matName: mat.name,
+        qty: rm.qty * newQty,
+        unit: rm.unit || mat.unit
+      });
+    }
+  });
+
+  // Replace the sale entry — old deductions are gone, new ones take effect
+  // Because calcMaterialStock reads from salesLog.materialDeductions dynamically,
+  // simply replacing the entry automatically corrects the stock
+  AppData.salesLog[idx] = {
+    ...AppData.salesLog[idx],
+    date: newDate,
+    productId: newPid,
+    productName: newProd.name,
+    qty: newQty,
+    price: newPrice,
+    total: newPrice * newQty,
+    materialDeductions: newDeductions
+  };
+
+  await saveData('salesLog', AppData.salesLog);
+  closeModal('editSaleModal');
+  renderSalesLog();
+  renderDashboard();
+  updateAlertBadge();
+  // Refresh reports if open
+  const activePanel = document.querySelector('.panel.active')?.id;
+  if (activePanel === 'panel-reports') renderSalesReport();
+  showToast('✅ تم تعديل سجل البيع وتحديث خصم المواد', 'success');
 }
 
 /* ════════════════════════════════════════
