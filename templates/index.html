@@ -1143,14 +1143,12 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
       <div class="sales-summary" id="salesSummary"></div>
       <div class="table-wrap"><table>
         <thead><tr>
-          <th>#</th>
-          <th>التاريخ</th>
+          <th>اليوم</th>
           <th>الصنف</th>
           <th>الكمية</th>
           <th>سعر ₪</th>
           <th>الإجمالي ₪</th>
           <th>خصم المواد</th>
-          <th>بواسطة</th>
           <th>إجراء</th>
         </tr></thead>
         <tbody id="salesLogTable"></tbody>
@@ -2396,27 +2394,63 @@ function renderSalesLog() {
 
   const tbody = document.getElementById('salesLogTable');
   if(!tbody) return;
-  tbody.innerHTML = logs.map((s,i)=>{
-    const dedStr = (s.materialDeductions||[]).length
-      ? (s.materialDeductions||[]).map(d=>`<span class="deduction-badge">-${d.qty.toFixed(2)} ${d.unit||''} ${d.matName}</span>`).join(' ')
-      : '<span style="color:var(--text-dim);">—</span>';
-    const actorBadge = s.addedBy ? `<span style="font-size:.65rem;color:var(--text-muted);">👤 ${s.addedBy}${s.editedBy?` ✏️ ${s.editedBy}`:''}</span>` : '';
-    return `<tr>
-      <td><span class="badge badge-gray">${AppData.salesLog.length-i}</span></td>
-      <td>${s.date}</td><td>${s.productName}</td>
-      <td style="font-weight:700;">${s.qty}</td>
-      <td>${s.price}</td>
-      <td style="font-weight:700;color:var(--green);">${s.total.toFixed(2)}</td>
-      <td>${dedStr}</td>
-      <td>${actorBadge}</td>
-      <td>
-        <div class="action-btns">
-          <button class="btn btn-warning btn-sm btn-icon" onclick="openEditSaleModal(${s.id})" title="تعديل">✏️</button>
-          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteSaleEntry(${s.id})" title="حذف">🗑️</button>
-        </div>
-      </td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem;">لا توجد مبيعات بعد</td></tr>';
+  if(!logs.length){
+    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:2rem;">لا توجد مبيعات بعد</td></tr>';
+    return;
+  }
+
+  // تجميع المبيعات حسب اليوم + المستخدم (جلسة واحدة)
+  const groups = [];
+  logs.forEach(s => {
+    const key = s.date + '||' + (s.createdById||s.createdBy||'');
+    const last = groups[groups.length-1];
+    if(last && last.key === key) {
+      last.items.push(s);
+    } else {
+      groups.push({ key, date:s.date, createdBy:s.createdBy||'—', items:[s] });
+    }
+  });
+
+  let html = '';
+  groups.forEach((group, gIdx) => {
+    const isEven = gIdx % 2 === 0;
+    const bg = isEven ? 'rgba(34,197,94,0.03)' : 'transparent';
+    const borderClr = isEven ? 'rgba(34,197,94,0.2)' : 'rgba(0,0,0,0.06)';
+    const dayTotal = group.items.reduce((s,i)=>s+i.total,0);
+    const dayQty   = group.items.reduce((s,i)=>s+i.qty,0);
+
+    group.items.forEach((s, itemIdx) => {
+      const isFirst = itemIdx === 0;
+      const isLast  = itemIdx === group.items.length - 1;
+      const dedStr  = (s.materialDeductions||[]).length
+        ? (s.materialDeductions||[]).map(d=>`<span class="deduction-badge">-${d.qty.toFixed(2)} ${d.unit||''} ${d.matName}</span>`).join(' ')
+        : '<span style="color:var(--text-dim);">—</span>';
+
+      const groupCell = isFirst ? `
+        <td rowspan="${group.items.length}" style="border-right:3px solid var(--green);vertical-align:middle;padding:.65rem .75rem;background:${bg};">
+          <div style="font-weight:700;font-size:.82rem;color:var(--green);">📅 ${group.date}</div>
+          <div style="font-size:.7rem;color:var(--text-muted);margin-top:2px;">👤 ${group.createdBy}</div>
+          <div style="font-size:.72rem;font-weight:700;color:var(--green);margin-top:3px;">${dayTotal.toFixed(2)} ₪</div>
+          <div style="font-size:.68rem;color:var(--text-dim);">${dayQty} وحدة | ${group.items.length} صنف</div>
+        </td>` : '';
+
+      html += `<tr style="background:${bg};">
+        ${groupCell}
+        <td style="font-weight:600;${isLast?'border-bottom:2px solid '+borderClr:''}">${s.productName}</td>
+        <td style="font-weight:700;${isLast?'border-bottom:2px solid '+borderClr:''}">${s.qty}</td>
+        <td style="${isLast?'border-bottom:2px solid '+borderClr:''}">${s.price} ₪</td>
+        <td style="font-weight:700;color:var(--green);${isLast?'border-bottom:2px solid '+borderClr:''}">${s.total.toFixed(2)}</td>
+        <td style="font-size:.72rem;${isLast?'border-bottom:2px solid '+borderClr:''}">${dedStr}</td>
+        <td style="${isLast?'border-bottom:2px solid '+borderClr:''}">
+          <div class="action-btns">
+            <button class="btn btn-warning btn-sm btn-icon" onclick="openEditSaleModal(${s.id})" title="تعديل">✏️</button>
+            <button class="btn btn-danger btn-sm btn-icon" onclick="deleteSaleEntry(${s.id})" title="حذف">🗑️</button>
+          </div>
+        </td>
+      </tr>`;
+    });
+  });
+  tbody.innerHTML = html;
 }
 
 /* ════════════════════════════════════════
