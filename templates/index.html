@@ -1697,22 +1697,39 @@ const STORAGE_KEYS = ['suppliers','materials','invoices','directMaterials','indi
 ═══════════════════════════════════ */
 const FIREBASE_URL = 'https://flora-cocktail-default-rtdb.firebaseio.com';
 const FIREBASE_KEY = 'AIzaSyCeZRuUbnPa1ok8xmjE6hCNm9fswZXG2WU';
+const INACTIVITY_LIMIT = 30 * 60 * 1000; // 30 دقيقة
+let inactivityTimer = null;
 
 async function fbSet(path, data) {
   const url = `${FIREBASE_URL}/${path}.json?auth=${FIREBASE_KEY}`;
-  const res = await fetch(url, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  });
-  return res.ok;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    return res.ok;
+  } catch(e) {
+    return false;
+  }
 }
 
 async function fbGet(path) {
   const url = `${FIREBASE_URL}/${path}.json?auth=${FIREBASE_KEY}`;
-  const res = await fetch(url);
-  if (!res.ok) return null;
-  return await res.json();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000); // 8 ثوان max
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch(e) {
+    return null;
+  }
 }
 
 async function saveData(key, data) {
@@ -1801,6 +1818,57 @@ function showSaveIndicator(status) {
   }
 }
 
+
+
+function resetInactivityTimer() {
+  if (!Auth.currentUser) return;
+  clearTimeout(inactivityTimer);
+  const keepLoggedIn = sessionStorage.getItem('flora:keepLoggedIn') === 'true';
+  if (keepLoggedIn) {
+    inactivityTimer = setTimeout(() => {
+      showToast('⏰ انتهت جلستك بسبب عدم النشاط', 'warning');
+      setTimeout(() => doLogoutSilent(), 2000);
+    }, INACTIVITY_LIMIT);
+  }
+}
+
+function doLogoutSilent() {
+  Auth.currentUser = null;
+  clearTimeout(inactivityTimer);
+  stopChatAutoRefresh();
+  stopAutoSaveSync();
+  sessionStorage.removeItem('flora:keepLoggedIn');
+  sessionStorage.removeItem('flora:session');
+  const nav = document.getElementById('mobileNav');
+  if(nav) nav.style.display='none';
+  const more = document.getElementById('mobileMoreMenu');
+  if(more) more.style.display='none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('mainTopbar').style.display = 'none';
+  document.getElementById('mainFooter').style.display = 'none';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginUser').value = '';
+  document.getElementById('loginError').style.display = 'none';
+}
+
+async function tryRestoreSession() {
+  const keep = sessionStorage.getItem('flora:keepLoggedIn');
+  if (keep !== 'true') return false;
+  const session = JSON.parse(sessionStorage.getItem('flora:session') || '{}');
+  if (!session.id || !session.time) return false;
+  if (Date.now() - session.time > INACTIVITY_LIMIT) {
+    sessionStorage.removeItem('flora:keepLoggedIn');
+    sessionStorage.removeItem('flora:session');
+    return false;
+  }
+  const user = Auth.users.find(u => u.id === session.id);
+  if (user) {
+    startSession(user);
+    return true;
+  }
+  return false;
+}
+
 async function loadAll() {
   try {
     // Load users from Firebase
@@ -1812,29 +1880,23 @@ async function loadAll() {
       saveUsers(Auth.users);
     }
 
-    // Load all AppData keys from Firebase
-    for (const key of STORAGE_KEYS) {
-      const val = await loadData(key);
+    // Load all AppData keys from Firebase in parallel
+    const defaultImg = AppData.logo.img;
+    const results = await Promise.all(STORAGE_KEYS.map(key => loadData(key)));
+    STORAGE_KEYS.forEach((key, i) => {
+      const val = results[i];
       if (val !== null) {
-        if (key === 'logo') {
-          const defaultImg = AppData.logo.img; // الصورة المدمجة بالكود
-          AppData[key] = val;
-          // لو Firebase ما عنده صورة — استخدم الصورة الافتراضية واحفظها
-          if (!AppData.logo.img && defaultImg) {
-            AppData.logo.img = defaultImg;
-            // احفظ الصورة على Firebase حتى ما تضيع المرة الجاية
-            fbSet('flora/logo', AppData.logo);
-            localStorage.setItem('flora:logo', JSON.stringify(AppData.logo));
-          }
-        } else {
-          AppData[key] = val;
+        AppData[key] = val;
+        if (key === 'logo' && !AppData.logo.img && defaultImg) {
+          AppData.logo.img = defaultImg;
+          fbSet('flora/logo', AppData.logo);
+          localStorage.setItem('flora:logo', JSON.stringify(AppData.logo));
         }
       } else if (key === 'logo') {
-        // Firebase ما عنده logo أصلاً — احفظ الافتراضي
         fbSet('flora/logo', AppData.logo);
         localStorage.setItem('flora:logo', JSON.stringify(AppData.logo));
       }
-    }
+    });
 
     // Seed defaults if first run
     if (!AppData.suppliers || AppData.suppliers.length === 0) await seedDefaults();
@@ -1996,38 +2058,7 @@ function getAllocatedFixedForProduct(pId, soldQty) {
 /* ════════════════════════════════════════
    LOGIN / LOGOUT
 ════════════════════════════════════════ */
-const INACTIVITY_LIMIT = 30 * 60 * 1000; // 30 دقيقة
-let inactivityTimer = null;
 
-function resetInactivityTimer() {
-  if (!Auth.currentUser) return;
-  clearTimeout(inactivityTimer);
-  const keepLoggedIn = sessionStorage.getItem('flora:keepLoggedIn') === 'true';
-  if (keepLoggedIn) {
-    inactivityTimer = setTimeout(() => {
-      showToast('⏰ انتهت جلستك بسبب عدم النشاط', 'warning');
-      setTimeout(() => doLogoutSilent(), 2000);
-    }, INACTIVITY_LIMIT);
-  }
-}
-
-function doLogoutSilent() {
-  Auth.currentUser = null;
-  clearTimeout(inactivityTimer);
-  stopChatAutoRefresh();
-  stopAutoSaveSync();
-  sessionStorage.removeItem('flora:keepLoggedIn');
-  sessionStorage.removeItem('flora:session');
-  document.getElementById('mobileNav').style.display='none';
-  document.getElementById('mobileMoreMenu').style.display='none';
-  document.getElementById('loginScreen').style.display = 'flex';
-  document.getElementById('mainTopbar').style.display = 'none';
-  document.getElementById('mainFooter').style.display = 'none';
-  document.getElementById('loginPass').value = '';
-  document.getElementById('loginUser').value = '';
-  document.getElementById('loginError').style.display = 'none';
-  closeProfileMenu();
-}
 
 function startSession(user) {
   Auth.currentUser = user;
@@ -2748,19 +2779,7 @@ function renderDashboard(){
   document.getElementById('ds-suppliers').textContent=AppData.suppliers.length;
   document.getElementById('ds-materials').textContent=AppData.materials.length;
   document.getElementById('ds-invoices').textContent=AppData.invoices.length;
-  // Update stat labels
-  const statLabels = {
-    'ds-products-label': 'ds_products',
-    'ds-suppliers-label': 'ds_suppliers',
-    'ds-materials-label': 'ds_materials',
-    'ds-invoices-label': 'ds_invoices',
-    'ds-sales-label': 'ds_total_sales',
-    'ds-profit-label': 'ds_total_profit',
-  };
-  Object.entries(statLabels).forEach(([id, key]) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = t(key);
-  });
+
   const totalSales=AppData.salesLog.reduce((s,l)=>s+l.total,0);
   document.getElementById('ds-sales-total').textContent=totalSales.toLocaleString();
   // rough profit = sales - raw material cost
@@ -4093,3 +4112,37 @@ window.addEventListener('resize', () => {
     nav.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
   }
 });
+
+
+/* تتبع النشاط */
+['click','keydown','touchstart','scroll'].forEach(evt => {
+  document.addEventListener(evt, () => {
+    if (Auth.currentUser && sessionStorage.getItem('flora:keepLoggedIn') === 'true') {
+      resetInactivityTimer();
+      const session = JSON.parse(sessionStorage.getItem('flora:session') || '{}');
+      session.time = Date.now();
+      sessionStorage.setItem('flora:session', JSON.stringify(session));
+    }
+  }, { passive: true });
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('footerYear').textContent = new Date().getFullYear();
+  applyStoredTheme();
+  loadAll();
+});
+
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'hidden' && Auth.currentUser) {
+    saveAll();
+  }
+});
+
+window.addEventListener('beforeunload', () => {
+  if (Auth.currentUser) {
+    saveAll();
+  }
+});
+</script>
+</body>
+</html>
