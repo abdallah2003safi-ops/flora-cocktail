@@ -2070,7 +2070,11 @@ function requirePerm(perm, action) {
 
 function currentUserTag() {
   const u = Auth.currentUser;
-  return u ? { by: u.name, byId: u.id, at: new Date().toLocaleString('ar-SA') } : {};
+  return u ? {
+    createdBy: u.name,
+    createdById: u.id,
+    createdAt: new Date().toISOString().split('T')[0]
+  } : { createdBy: '—', createdById: '', createdAt: '' };
 }
 
 
@@ -2456,8 +2460,8 @@ function renderSalesLog() {
       const groupCell = isFirst ? `
         <td rowspan="${group.items.length}" style="border-right:3px solid var(--green);vertical-align:middle;padding:.65rem .75rem;background:${bg};">
           <div style="font-weight:700;font-size:.82rem;color:var(--green);">📅 ${group.date}</div>
-          <div style="font-size:.7rem;color:var(--text-muted);margin-top:2px;">👤 ${group.createdBy}</div>
-          <div style="font-size:.72rem;font-weight:700;color:var(--green);margin-top:3px;">${dayTotal.toFixed(2)} ₪</div>
+          <div style="margin-top:3px;"><span style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);border-radius:20px;padding:2px 8px;font-size:.68rem;font-weight:700;color:var(--green);">👤 ${group.createdBy}</span></div>
+          <div style="font-size:.72rem;font-weight:700;color:var(--green);margin-top:4px;">${dayTotal.toFixed(2)} ₪</div>
           <div style="font-size:.68rem;color:var(--text-dim);">${dayQty} وحدة | ${group.items.length} صنف</div>
         </td>` : '';
 
@@ -3055,7 +3059,7 @@ function renderPurchasesTable(){
           <div style="font-weight:700;font-size:.8rem;color:var(--red);">${inv.id}</div>
           <div style="font-size:.7rem;color:var(--text-muted);margin-top:2px;">📅 ${inv.date||'—'}</div>
           <div style="font-size:.7rem;color:var(--text-muted);">🏭 ${inv.supplier}</div>
-          ${inv.createdBy?`<div style="font-size:.65rem;color:var(--text-dim);margin-top:2px;">👤 ${inv.createdBy}</div>`:''}
+          <div style="margin-top:3px;"><span style="background:rgba(200,16,46,0.10);border:1px solid rgba(200,16,46,0.25);border-radius:20px;padding:2px 8px;font-size:.68rem;font-weight:700;color:var(--red);">👤 ${inv.createdBy||'—'}</span>${inv.editedBy?`<span style="background:rgba(245,158,11,0.10);border:1px solid rgba(245,158,11,0.3);border-radius:20px;padding:2px 6px;font-size:.65rem;color:var(--orange);margin-right:3px;">✏️ ${inv.editedBy}</span>`:''}</div>
           <div style="font-size:.72rem;font-weight:700;color:var(--green);margin-top:4px;">${inv.total?.toLocaleString()||'—'} ₪</div>
           ${canEdit ? `<div class="action-btns" style="margin-top:6px;">
             <button class="btn btn-ghost btn-sm btn-icon" onclick="editInvoice('${inv.id}')">✏️</button>
@@ -3334,9 +3338,68 @@ function renderPaymentHistory(supId) {
       <td><span class="badge badge-blue">${p.method||'نقد'}</span></td>
       <td style="font-size:.78rem;">${p.note||'—'}</td>
       <td style="font-size:.72rem;color:var(--text-muted);">👤 ${p.createdBy||'—'}</td>
-      <td><button class="btn btn-danger btn-sm btn-icon" onclick="deletePayment('${p.id}','${supId}')">🗑️</button></td>
+      <td>
+        <div class="action-btns">
+          <button class="btn btn-warning btn-sm btn-icon" onclick="editPayment('${p.id}','${supId}')">✏️</button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deletePayment('${p.id}','${supId}')">🗑️</button>
+        </div>
+      </td>
     </tr>`).join('')}</tbody>
   </table></div>`;
+}
+
+function editPayment(payId, supId) {
+  const pay = (AppData.supplierPayments||[]).find(p => p.id === payId);
+  if (!pay) return;
+  // افتح نافذة التعديل داخل نفس المودال
+  const editHTML = `
+    <div style="background:var(--surface-alt);border-radius:12px;padding:1rem;margin-top:.5rem;border:2px solid var(--orange);">
+      <div class="section-title" style="margin-bottom:.75rem;">✏️ تعديل الدفعة</div>
+      <div class="form-grid">
+        <div class="form-group"><label>المبلغ ₪</label>
+          <input type="number" class="form-control" id="edit-pay-amount" step="0.01" value="${pay.amount}">
+        </div>
+        <div class="form-group"><label>التاريخ</label>
+          <input type="date" class="form-control" id="edit-pay-date" value="${pay.date}">
+        </div>
+      </div>
+      <div class="form-group"><label>طريقة الدفع</label>
+        <select class="form-control" id="edit-pay-method">
+          ${['نقد','تحويل بنكي','شيك','أخرى'].map(m=>`<option value="${m}" ${pay.method===m?'selected':''}>${m}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group"><label>ملاحظات</label>
+        <input type="text" class="form-control" id="edit-pay-note" value="${pay.note||''}">
+      </div>
+      <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:.75rem;">
+        <button class="btn btn-ghost btn-sm" onclick="openPaymentModal('${supId}')">إلغاء</button>
+        <button class="btn btn-primary btn-sm" onclick="saveEditPayment('${payId}','${supId}')">💾 حفظ</button>
+      </div>
+    </div>`;
+  // أضف نموذج التعديل بعد جدول الدفعات
+  const existing = document.getElementById('pay-edit-area');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.id = 'pay-edit-area';
+  div.innerHTML = editHTML;
+  document.querySelector('#sup-modal-body')?.appendChild(div);
+  div.scrollIntoView({behavior:'smooth'});
+}
+
+async function saveEditPayment(payId, supId) {
+  const pay = AppData.supplierPayments.find(p => p.id === payId);
+  if (!pay) return;
+  const amount = parseFloat(document.getElementById('edit-pay-amount').value) || 0;
+  if (!amount || amount <= 0) { showToast('يرجى إدخال مبلغ صحيح', 'warning'); return; }
+  pay.amount = amount;
+  pay.date   = document.getElementById('edit-pay-date').value;
+  pay.method = document.getElementById('edit-pay-method').value;
+  pay.note   = document.getElementById('edit-pay-note').value.trim();
+  pay.editedBy = Auth.currentUser?.name || '—';
+  await saveData('supplierPayments', AppData.supplierPayments);
+  showToast('✅ تم التعديل', 'success');
+  openPaymentModal(supId);
+  renderSuppliers();
 }
 
 async function saveSupplierPayment(supId) {
