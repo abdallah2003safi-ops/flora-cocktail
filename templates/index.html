@@ -1324,7 +1324,7 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
         </div>
       </div>
       <div class="table-wrap"><table>
-        <thead><tr><th>رقم</th><th>الصنف</th><th>السعر ₪</th><th>مواد خام ₪</th><th>أجور ₪</th><th>إهلاك ₪</th><th>متغيرة غير مباشرة ₪</th><th>ثابتة مخصصة ₪</th><th>إجمالي التكلفة ₪</th><th>ربح/وحدة ₪</th><th>المباع</th><th>إجمالي الربح ₪</th></tr></thead>
+        <thead><tr><th>رقم</th><th>الصنف</th><th>السعر ₪</th><th>مواد خام ₪</th><th>أجور ₪</th><th>إهلاك ₪</th><th>متغيرة غير مباشرة ₪</th><th>ثابتة مخصصة ₪</th><th>إجمالي التكلفة ₪</th><th>ربح قبل الثابتة ₪</th><th>ربح بعد الثابتة ₪</th><th>المباع</th><th>إجمالي الربح ₪</th></tr></thead>
         <tbody id="profitTable"></tbody>
       </table></div>
     </div>
@@ -1655,7 +1655,7 @@ const AppData = {
 /* ════════════════════════════════════════
    PERSISTENT STORAGE (shared across users)
 ════════════════════════════════════════ */
-const STORAGE_KEYS = ['suppliers','materials','invoices','directMaterials','indirectVar','indirectFixed',
+const STORAGE_KEYS = ['suppliers','materials','invoices','directMaterials','indirectVar','indirectFixed','supplierPayments',
   'labor','depreciationLines','distribution','products','salesLog','logo','chatMessages','pwResetRequests'];
 
 /* ═══════════════════════════════════
@@ -3182,22 +3182,217 @@ async function saveInvoice(){
 /* ════════════════════════════════════════
    SUPPLIERS
 ════════════════════════════════════════ */
+/* ════════════════════════════════════════
+   SUPPLIER PAYMENTS
+════════════════════════════════════════ */
+function printSupplierAccount(supId) {
+  const sup = AppData.suppliers.find(s => s.id === supId);
+  if (!sup) return;
+  const invs = AppData.invoices.filter(i => i.supplier === sup.name).sort((a,b) => a.date.localeCompare(b.date));
+  const payments = (AppData.supplierPayments||[]).filter(p => p.supplierId === supId).sort((a,b) => a.date.localeCompare(b.date));
+  const totalPurchases = invs.reduce((s,i) => s+i.total, 0);
+  const totalPaid = payments.reduce((s,p) => s+p.amount, 0);
+  const balance = totalPurchases - totalPaid;
+
+  // Build combined ledger sorted by date
+  let ledger = [];
+  invs.forEach(inv => ledger.push({date:inv.date, type:'purchase', label:`فاتورة ${inv.id}`, debit:inv.total, credit:0}));
+  payments.forEach(p => ledger.push({date:p.date, type:'payment', label:(p.method||'نقد')+(p.note?` — ${p.note}`:''), debit:0, credit:p.amount}));
+  ledger.sort((a,b) => a.date.localeCompare(b.date));
+
+  let running = 0;
+  const rows = ledger.map(row => {
+    running += row.debit - row.credit;
+    const isPay = row.type === 'payment';
+    return `<tr>
+      <td>${row.date}</td>
+      <td>${isPay ? '💵 دفعة' : '🧾 مشتريات'}</td>
+      <td>${row.label}</td>
+      <td style="color:#b91c1c;font-weight:${row.debit?'700':'400'}">${row.debit ? row.debit.toLocaleString() : '—'}</td>
+      <td style="color:#15803d;font-weight:${row.credit?'700':'400'}">${row.credit ? row.credit.toLocaleString() : '—'}</td>
+      <td style="font-weight:700;color:${running<=0?'#15803d':'#b91c1c'};">${running.toLocaleString()} ₪</td>
+    </tr>`;
+  }).join('');
+
+  const date = new Date().toLocaleDateString('ar-SA');
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head>
+    <meta charset="UTF-8">
+    <title>كشف حساب — ${sup.name}</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: Tahoma, Arial, sans-serif; padding: 24px; color: #1a1a1a; direction: rtl; font-size: 13px; }
+      .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 3px solid #C8102E; }
+      .header-right h1 { color: #C8102E; font-size: 1.2rem; margin-bottom: 4px; }
+      .header-right p { color: #666; font-size: .82rem; }
+      .header-left { text-align: left; color: #444; font-size: .82rem; line-height: 1.7; }
+      .stats { display: flex; gap: 12px; margin-bottom: 18px; }
+      .stat { flex: 1; border: 1px solid #eee; border-radius: 8px; padding: 10px 14px; text-align: center; }
+      .stat-val { font-size: 1.15rem; font-weight: 800; }
+      .stat-lbl { font-size: .72rem; color: #888; margin-top: 3px; }
+      table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+      thead tr { background: #C8102E; color: white; }
+      th { padding: 9px 8px; text-align: right; font-weight: 700; }
+      td { padding: 8px; border-bottom: 1px solid #f0f0f0; }
+      tr:nth-child(even) td { background: #fafafa; }
+      .footer { margin-top: 28px; padding-top: 12px; border-top: 1px solid #ddd; display: flex; justify-content: space-between; font-size: .75rem; color: #999; }
+      .balance-box { margin-top: 14px; padding: 12px 16px; border-radius: 8px; background: ${balance > 0 ? '#fef2f2' : '#f0fdf4'}; border: 2px solid ${balance > 0 ? '#fca5a5' : '#86efac'}; font-size: 1rem; font-weight: 800; color: ${balance > 0 ? '#b91c1c' : '#15803d'}; text-align: center; }
+      @media print { body { padding: 10px; } button { display: none; } }
+    </style>
+  </head><body>
+    <div class="header">
+      <div class="header-right">
+        <h1>🏭 كشف حساب مورد</h1>
+        <p style="font-size:1rem;font-weight:700;margin-top:6px;">${sup.name}</p>
+        ${sup.phone ? `<p>📞 ${sup.phone}</p>` : ''}
+        ${sup.notes ? `<p>📝 ${sup.notes}</p>` : ''}
+      </div>
+      <div class="header-left">
+        <div><strong>فلورا كوكتيل</strong></div>
+        <div>تاريخ الطباعة: ${date}</div>
+        <div>عدد الفواتير: ${invs.length}</div>
+        <div>عدد الدفعات: ${payments.length}</div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-val">${totalPurchases.toLocaleString()} ₪</div><div class="stat-lbl">إجمالي المشتريات</div></div>
+      <div class="stat"><div class="stat-val" style="color:#15803d;">${totalPaid.toLocaleString()} ₪</div><div class="stat-lbl">إجمالي المدفوع</div></div>
+      <div class="stat"><div class="stat-val" style="color:${balance>0?'#b91c1c':'#15803d'};">${balance.toLocaleString()} ₪</div><div class="stat-lbl">${balance>0?'الرصيد المتبقي':'مسدد بالكامل'}</div></div>
+    </div>
+    <table>
+      <thead><tr><th>التاريخ</th><th>النوع</th><th>البيان</th><th>مديونية ₪</th><th>مدفوع ₪</th><th>الرصيد ₪</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:#999;padding:1.5rem;">لا توجد حركات</td></tr>'}</tbody>
+    </table>
+    <div class="balance-box">${balance > 0 ? `⏳ الرصيد المستحق: ${balance.toLocaleString()} ₪` : '✅ الحساب مسدد بالكامل'}</div>
+    <div class="footer">
+      <span>فلورا كوكتيل — نظام الإدارة المتكامل</span>
+      <span>طُبع بتاريخ: ${date}</span>
+    </div>
+  </body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 500);
+}
+
+function openPaymentModal(supId) {
+  const sup = AppData.suppliers.find(s => s.id === supId);
+  if (!sup) return;
+  const invs = AppData.invoices.filter(i => i.supplier === sup.name);
+  const totalPurchases = invs.reduce((s,i) => s+i.total, 0);
+  const totalPaid = (AppData.supplierPayments||[]).filter(p => p.supplierId === supId).reduce((s,p) => s+p.amount, 0);
+  const balance = totalPurchases - totalPaid;
+
+  document.getElementById('sup-modal-title').textContent = `💵 تسجيل دفعة — ${sup.name}`;
+  document.getElementById('sup-modal-body').innerHTML = `
+    <div class="stats-row" style="margin-bottom:1.2rem;">
+      <div class="stat-card"><div class="stat-val">${totalPurchases.toLocaleString()}</div><div class="stat-label">إجمالي المشتريات ₪</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--green);">${totalPaid.toLocaleString()}</div><div class="stat-label">مدفوع ₪</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:${balance>0?'var(--red)':'var(--green)'};">${balance.toLocaleString()}</div><div class="stat-label">${balance>0?'الرصيد المتبقي ₪':'✅ مسدد'}</div></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>المبلغ المدفوع ₪</label>
+        <input type="number" class="form-control" id="pay-amount" step="0.01" placeholder="0.00" value="${balance>0?balance.toFixed(2):''}">
+      </div>
+      <div class="form-group">
+        <label>التاريخ</label>
+        <input type="date" class="form-control" id="pay-date" value="${new Date().toISOString().split('T')[0]}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>طريقة الدفع</label>
+      <select class="form-control" id="pay-method">
+        <option value="نقد">💵 نقد</option>
+        <option value="تحويل بنكي">🏦 تحويل بنكي</option>
+        <option value="شيك">📄 شيك</option>
+        <option value="أخرى">🔖 أخرى</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>ملاحظات (اختياري)</label>
+      <input type="text" class="form-control" id="pay-note" placeholder="مثال: دفعة أولى، تسوية فاتورة INV-003">
+    </div>
+    <div style="display:flex;gap:.75rem;margin-top:1rem;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeModal('supplierModal')">إلغاء</button>
+      <button class="btn btn-primary" onclick="saveSupplierPayment('${supId}')">💾 حفظ الدفعة</button>
+    </div>
+    <div style="margin-top:1.5rem;">
+      <div class="section-title">سجل الدفعات السابقة</div>
+      ${renderPaymentHistory(supId)}
+    </div>`;
+  openModal('supplierModal');
+}
+
+function renderPaymentHistory(supId) {
+  const pays = (AppData.supplierPayments||[]).filter(p => p.supplierId === supId).sort((a,b) => b.date.localeCompare(a.date));
+  if (!pays.length) return '<div style="color:var(--text-muted);font-size:.82rem;padding:.5rem 0;">لا توجد دفعات مسجلة بعد</div>';
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>التاريخ</th><th>المبلغ ₪</th><th>الطريقة</th><th>ملاحظات</th><th>بواسطة</th><th></th></tr></thead>
+    <tbody>${pays.map(p => `<tr>
+      <td>${p.date}</td>
+      <td style="font-weight:700;color:var(--green);">${p.amount.toLocaleString()}</td>
+      <td><span class="badge badge-blue">${p.method||'نقد'}</span></td>
+      <td style="font-size:.78rem;">${p.note||'—'}</td>
+      <td style="font-size:.72rem;color:var(--text-muted);">👤 ${p.createdBy||'—'}</td>
+      <td><button class="btn btn-danger btn-sm btn-icon" onclick="deletePayment('${p.id}','${supId}')">🗑️</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+async function saveSupplierPayment(supId) {
+  const amount = parseFloat(document.getElementById('pay-amount').value) || 0;
+  const date = document.getElementById('pay-date').value;
+  const method = document.getElementById('pay-method').value;
+  const note = document.getElementById('pay-note').value.trim();
+  if (!amount || amount <= 0) { showToast('يرجى إدخال مبلغ صحيح', 'warning'); return; }
+  if (!date) { showToast('يرجى تحديد التاريخ', 'warning'); return; }
+  if (!AppData.supplierPayments) AppData.supplierPayments = [];
+  AppData.supplierPayments.push({
+    id: 'PAY-' + Date.now(),
+    supplierId: supId,
+    amount, date, method, note,
+    createdBy: Auth.currentUser?.name || '—',
+    createdById: Auth.currentUser?.id || ''
+  });
+  await saveData('supplierPayments', AppData.supplierPayments);
+  showToast('✅ تم تسجيل الدفعة', 'success');
+  openPaymentModal(supId); // refresh
+  renderSuppliers();
+}
+
+async function deletePayment(payId, supId) {
+  confirmAction('حذف الدفعة', 'حذف هذه الدفعة نهائياً؟', '🗑️', async () => {
+    AppData.supplierPayments = AppData.supplierPayments.filter(p => p.id !== payId);
+    await saveData('supplierPayments', AppData.supplierPayments);
+    showToast('تم الحذف', 'success');
+    openPaymentModal(supId);
+    renderSuppliers();
+  });
+}
+
 function renderSuppliers(){
   const q=(document.getElementById('supplierSearch')?.value||'').toLowerCase();
   let sups=AppData.suppliers;
   if(q) sups=sups.filter(s=>s.name.toLowerCase().includes(q)||s.id.toLowerCase().includes(q));
   document.getElementById('suppliersList').innerHTML=sups.map(s=>{
     const invs=AppData.invoices.filter(i=>i.supplier===s.name);
-    const totalSpend=invs.reduce((sum,i)=>sum+i.total,0);
+    const totalPurchases=invs.reduce((sum,i)=>sum+i.total,0);
+    const totalPaid=(AppData.supplierPayments||[]).filter(p=>p.supplierId===s.id).reduce((sum,p)=>sum+p.amount,0);
+    const balance=totalPurchases-totalPaid;
+    const balColor=balance<=0?'var(--green)':'var(--red)';
     return `<div class="supplier-card">
-      <div style="flex:1;" onclick="viewSupplier('${s.id}')">
-        <div class="sup-name">${s.name}</div><div class="sup-id">رقم: ${s.id}</div>
+      <div style="flex:1;cursor:pointer;" onclick="viewSupplier('${s.id}')">
+        <div class="sup-name">${s.name}</div>
+        <div class="sup-id">رقم: ${s.id}${s.phone?` &nbsp;|&nbsp; 📞 ${s.phone}`:''}</div>
       </div>
       <div class="supplier-stats">
         <div class="sup-stat"><div class="sv">${invs.length}</div><div class="sl">فاتورة</div></div>
-        <div class="sup-stat"><div class="sv">${totalSpend.toLocaleString()}</div><div class="sl">₪</div></div>
+        <div class="sup-stat"><div class="sv">${totalPurchases.toLocaleString()}</div><div class="sl">مشتريات ₪</div></div>
+        <div class="sup-stat"><div class="sv" style="color:var(--green);">${totalPaid.toLocaleString()}</div><div class="sl">مدفوع ₪</div></div>
+        <div class="sup-stat"><div class="sv" style="color:${balColor};font-weight:800;">${balance.toLocaleString()}</div><div class="sl">الرصيد ₪</div></div>
       </div>
       <div class="action-btns">
+        <button class="btn btn-primary btn-sm" onclick="openPaymentModal('${s.id}')">💵 دفعة</button>
         <button class="btn btn-ghost btn-sm" onclick="viewSupplier('${s.id}')">عرض</button>
         <button class="btn btn-warning btn-sm btn-icon perm-suppliers" onclick="editSupplierModal('${s.id}')">✏️</button>
         <button class="btn btn-danger btn-sm btn-icon perm-suppliers" onclick="deleteSupplier('${s.id}')">🗑️</button>
@@ -3244,14 +3439,49 @@ function viewSupplier(id){
   const sup=AppData.suppliers.find(s=>s.id===id);if(!sup)return;
   const invs=AppData.invoices.filter(i=>i.supplier===sup.name);
   const total=invs.reduce((s,i)=>s+i.total,0);
-  document.getElementById('sup-modal-title').textContent='سجل المورّد: '+sup.name;
+  const payments=(AppData.supplierPayments||[]).filter(p=>p.supplierId===sup.id).sort((a,b)=>a.date.localeCompare(b.date));
+  const totalPaid=payments.reduce((s,p)=>s+p.amount,0);
+  const balance=total-totalPaid;
+  const balColor=balance<=0?'var(--green)':'var(--red)';
+
+  // Build combined ledger: purchases + payments sorted by date
+  let ledger=[];
+  invs.forEach(inv=>ledger.push({date:inv.date,type:'purchase',label:`فاتورة ${inv.id}`,debit:inv.total,credit:0}));
+  payments.forEach(p=>ledger.push({date:p.date,type:'payment',label:p.note||'دفعة',debit:0,credit:p.amount}));
+  ledger.sort((a,b)=>a.date.localeCompare(b.date));
+  let running=0;
+  const ledgerRows=ledger.map(row=>{
+    running+=row.debit-row.credit;
+    const isPayment=row.type==='payment';
+    return `<tr>
+      <td>${row.date}</td>
+      <td><span class="badge ${isPayment?'badge-green':'badge-red'}">${isPayment?'💵 دفعة':'🧾 مشتريات'}</span></td>
+      <td>${row.label}</td>
+      <td style="color:var(--red);font-weight:${row.debit?'700':'400'}">${row.debit?row.debit.toLocaleString():'—'}</td>
+      <td style="color:var(--green);font-weight:${row.credit?'700':'400'}">${row.credit?row.credit.toLocaleString():'—'}</td>
+      <td style="font-weight:700;color:${running<=0?'var(--green)':'var(--red)'};">${running.toLocaleString()} ₪</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('sup-modal-title').textContent='حساب المورّد: '+sup.name;
   document.getElementById('sup-modal-body').innerHTML=`
     <div class="stats-row" style="margin-bottom:1rem;">
       <div class="stat-card"><div class="stat-val">${invs.length}</div><div class="stat-label">فاتورة</div></div>
-      <div class="stat-card"><div class="stat-val">${total.toLocaleString()}</div><div class="stat-label">إجمالي ₪</div></div>
+      <div class="stat-card"><div class="stat-val">${total.toLocaleString()}</div><div class="stat-label">إجمالي المشتريات ₪</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:var(--green);">${totalPaid.toLocaleString()}</div><div class="stat-label">إجمالي المدفوع ₪</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:${balColor};font-size:1.3rem;">${balance.toLocaleString()}</div><div class="stat-label">${balance<=0?'✅ مسدد':'⏳ الرصيد المتبقي ₪'}</div></div>
     </div>
-    <div class="table-wrap"><table><thead><tr><th>الفاتورة</th><th>التاريخ</th><th>البنود</th><th>الإجمالي</th></tr></thead>
-    <tbody>${invs.map(inv=>`<tr><td><span class="badge badge-red">${inv.id}</span></td><td>${inv.date}</td><td>${inv.items.length}</td><td>${inv.total.toLocaleString()} ₪</td></tr>`).join('')||'<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">لا توجد فواتير</td></tr>'}</tbody></table></div>`;
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+      <div class="section-title" style="margin:0;">📋 كشف الحساب</div>
+      <div style="display:flex;gap:.5rem;">
+        <button class="btn btn-outline btn-sm" onclick="printSupplierAccount('${sup.id}')">🖨️ طباعة</button>
+        <button class="btn btn-primary btn-sm" onclick="closeModal('supplierModal');openPaymentModal('${sup.id}')">💵 تسجيل دفعة</button>
+      </div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>التاريخ</th><th>النوع</th><th>البيان</th><th>مديونية ₪</th><th>مدفوع ₪</th><th>الرصيد ₪</th></tr></thead>
+      <tbody>${ledgerRows||'<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:1.5rem;">لا توجد حركات</td></tr>'}</tbody>
+    </table></div>`;
   openModal('supplierModal');
 }
 
@@ -3931,7 +4161,7 @@ function printProfitReport() {
 
 function exportProfitExcel() {
   const rows = [];
-  const headers = ['رقم','الصنف','السعر','مواد خام','أجور','إهلاك','متغيرة غير مباشرة','ثابتة مخصصة','إجمالي التكلفة','ربح/وحدة','المباع','إجمالي الربح'];
+  const headers = ['رقم','الصنف','السعر','مواد خام','أجور','إهلاك','متغيرة غير مباشرة','ثابتة مخصصة','إجمالي التكلفة','ربح قبل الثابتة','ربح بعد الثابتة','المباع','إجمالي الربح'];
   rows.push(headers.join(','));
   document.querySelectorAll('#profitTable tr').forEach(function(tr) {
     const cells = Array.from(tr.querySelectorAll('td')).map(function(td){ return td.textContent.trim(); });
@@ -4020,8 +4250,12 @@ function renderProfitTable(){
     // Allocate indirect variable costs by group
     const allocVarPU = calcIndirectVarForProduct(p.id, p.cat, soldQty);
 
-    const totalCostPU=costs.totalCostExFixed+allocFixedPU+allocVarPU;
-    const pu=p.price-totalCostPU;
+    // تكلفة بدون الثابتة
+    const costExFixed = costs.totalCostExFixed + allocVarPU;
+    const puBeforeFixed = p.price - costExFixed;
+    // تكلفة كاملة مع الثابتة
+    const totalCostPU = costExFixed + allocFixedPU;
+    const pu = p.price - totalCostPU;
 
     // لو filter=profit أو loss، تخطى الأصناف اللي ما عندها مبيعات
     if(filter && soldQty===0) return;
@@ -4029,6 +4263,7 @@ function renderProfitTable(){
     if(filter==='loss'&&pu>=0)return;
 
     const tp=pu*soldQty;
+    const tpBefore=puBeforeFixed*soldQty;
     tRev+=pRev;
     tCost+=totalCostPU*soldQty;
     tProfit+=tp;
@@ -4044,19 +4279,21 @@ function renderProfitTable(){
       <td style="color:var(--blue);">${allocVarPU.toFixed(3)}</td>
       <td style="color:var(--orange);">${allocFixedPU.toFixed(3)}</td>
       <td>${totalCostPU.toFixed(3)}</td>
+      <td style="font-weight:700;color:${puBeforeFixed>=0?'var(--green)':'#ff6b6b'};">${puBeforeFixed.toFixed(3)}</td>
       <td style="font-weight:700;color:${pu>=0?'var(--green)':'#ff6b6b'};">${pu.toFixed(3)}</td>
       <td>${soldQty}</td>
       <td style="font-weight:700;color:${tp>=0?'var(--green)':'#ff6b6b'};">${tp.toFixed(2)}</td>`;
     tbody.appendChild(tr);
   });
 
+  const tProfitBefore = tRev - (tCost - tFixed);
   document.getElementById('profitStats').innerHTML=`
     <div class="stat-card"><div class="stat-val" style="color:var(--green);">${tRev.toFixed(0)}</div><div class="stat-label">إجمالي المبيعات ₪</div></div>
-    <div class="stat-card"><div class="stat-val">${tCost.toFixed(0)}</div><div class="stat-label">إجمالي التكلفة ₪</div></div>
-    <div class="stat-card"><div class="stat-val" style="color:${tProfit>=0?'var(--green)':'#ff6b6b'};">${tProfit.toFixed(0)}</div><div class="stat-label">إجمالي الربح ₪</div></div>
-    <div class="stat-card"><div class="stat-val">${tRev>0?((tProfit/tRev)*100).toFixed(1):0}%</div><div class="stat-label">هامش الربح</div></div>
-    <div class="stat-card"><div class="stat-val" style="color:var(--orange);">${totalFixed.toFixed(0)}</div><div class="stat-label">إجمالي التكاليف الثابتة ₪</div></div>
-    <div class="stat-card"><div class="stat-val" style="color:var(--orange);">${tFixed.toFixed(0)}</div><div class="stat-label">التكاليف الثابتة الموزعة ₪</div></div>`;
+    <div class="stat-card"><div class="stat-val" style="color:var(--orange);">${totalFixed.toFixed(0)}</div><div class="stat-label">التكاليف الثابتة الكلية ₪</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:${tProfitBefore>=0?'var(--green)':'#ff6b6b'};">${tProfitBefore.toFixed(0)}</div><div class="stat-label">الربح قبل الثابتة ₪</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:${tProfit>=0?'var(--green)':'#ff6b6b'};">${tProfit.toFixed(0)}</div><div class="stat-label">الربح بعد الثابتة ₪</div></div>
+    <div class="stat-card"><div class="stat-val">${tRev>0?((tProfit/tRev)*100).toFixed(1):0}%</div><div class="stat-label">هامش الربح الصافي</div></div>
+    <div class="stat-card"><div class="stat-val">${tRev>0?((tProfitBefore/tRev)*100).toFixed(1):0}%</div><div class="stat-label">هامش الربح التشغيلي</div></div>`;
   } catch(err) {
     console.error('renderProfitTable error:', err);
     const tb=document.getElementById('profitTable');
@@ -4321,6 +4558,51 @@ function printReport(areaId) {
     filtersSummary=p.join(' | ');
   }
 
+  // حساب المجاميع من الجدول المعروض
+  let totalsRowHTML = '';
+  if (isSales) {
+    const rows = document.querySelectorAll('#rpt-sales-table tbody tr');
+    let sumQty=0, sumTotal=0;
+    rows.forEach(tr => {
+      const cells = tr.querySelectorAll('td');
+      if(cells.length >= 6) {
+        sumQty   += parseFloat(cells[3]?.textContent?.replace(/,/g,'')||0)||0;
+        sumTotal += parseFloat(cells[5]?.textContent?.replace(/[₪,]/g,'')||0)||0;
+      }
+    });
+    totalsRowHTML = rows.length ? `
+      <table style="margin-top:0;border-top:3px solid #C8102E;">
+        <tbody>
+          <tr style="background:#fdf5f6;">
+            <td colspan="3" style="font-weight:900;font-size:.85rem;padding:.55rem .65rem;color:#C8102E;">📊 الإجمالي الكلي</td>
+            <td style="font-weight:900;font-size:.85rem;padding:.55rem .65rem;">${sumQty.toLocaleString()} وحدة</td>
+            <td></td>
+            <td style="font-weight:900;font-size:.9rem;padding:.55rem .65rem;color:#15803D;">${sumTotal.toLocaleString()} ₪</td>
+            <td colspan="10"></td>
+          </tr>
+        </tbody>
+      </table>` : '';
+  } else {
+    const rows = document.querySelectorAll('#rpt-pur-table tbody tr');
+    let sumTotal=0;
+    rows.forEach(tr => {
+      const cells = tr.querySelectorAll('td');
+      if(cells.length >= 5) {
+        sumTotal += parseFloat(cells[4]?.textContent?.replace(/[₪,]/g,'')||0)||0;
+      }
+    });
+    totalsRowHTML = rows.length ? `
+      <table style="margin-top:0;border-top:3px solid #C8102E;">
+        <tbody>
+          <tr style="background:#fdf5f6;">
+            <td colspan="4" style="font-weight:900;font-size:.85rem;padding:.55rem .65rem;color:#C8102E;">📊 الإجمالي الكلي</td>
+            <td style="font-weight:900;font-size:.9rem;padding:.55rem .65rem;color:#15803D;">${sumTotal.toLocaleString()} ₪</td>
+            <td colspan="10"></td>
+          </tr>
+        </tbody>
+      </table>` : '';
+  }
+
   const w = window.open('','_blank');
   if(!w){showToast('السماح بالنوافذ المنبثقة للطباعة','warning');return;}
   w.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head>
@@ -4363,6 +4645,7 @@ tbody tr:nth-child(even) td{background:#fdf5f6;}
   </div>
 </div>
 ${tableHTML}
+${totalsRowHTML}
 <div class="print-footer"><span>${logo.name} — ${logo.sub}</span><span>${reportTitle} | ${now}</span></div>
 <script>window.onload=()=>{setTimeout(()=>{window.print();},400);}<\/script>
 </body></html>`);
