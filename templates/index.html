@@ -1150,6 +1150,7 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
           <th>سعر ₪</th>
           <th>الإجمالي ₪</th>
           <th>خصم المواد</th>
+          <th>بواسطة</th>
           <th>إجراء</th>
         </tr></thead>
         <tbody id="salesLogTable"></tbody>
@@ -1168,7 +1169,7 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
     </div>
     <div class="card"><div class="card-header"><h3>📋 سجل الفواتير</h3></div>
       <div class="table-wrap"><table>
-        <thead><tr><th>رقم الفاتورة</th><th>المورّد</th><th>المادة</th><th>الكمية</th><th>سعر الوحدة ₪</th><th>الإجمالي ₪</th><th>التاريخ</th><th>إجراء</th></tr></thead>
+        <thead><tr><th>رقم الفاتورة</th><th>المورّد</th><th>المادة</th><th>الكمية</th><th>سعر الوحدة ₪</th><th>الإجمالي ₪</th><th>التاريخ</th><th>بواسطة</th><th>إجراء</th></tr></thead>
         <tbody id="purchasesTable"></tbody>
       </table></div>
     </div>
@@ -2020,6 +2021,70 @@ function getAllocatedFixedForProduct(pId, soldQty) {
   return allocTotal / soldQty; // per unit
 }
 
+
+/* ════════════════════════════════════════
+   PERMISSION ENFORCEMENT
+════════════════════════════════════════ */
+function hasPerm(perm) {
+  if (!Auth.currentUser) return false;
+  if (Auth.isAdmin()) return true;
+  return Auth.currentUser.permissions?.[perm] === true;
+}
+
+function requirePerm(perm, action) {
+  if (!hasPerm(perm)) {
+    showToast('⛔ ليس لديك صلاحية: ' + action, 'warning');
+    return false;
+  }
+  return true;
+}
+
+function currentUserTag() {
+  const u = Auth.currentUser;
+  return u ? { by: u.name, byId: u.id, at: new Date().toLocaleString('ar-SA') } : {};
+}
+
+
+/* ════════════════════════════════════════
+   PERMISSION ENFORCEMENT
+════════════════════════════════════════ */
+function canDo(perm) {
+  if (Auth.isAdmin()) return true;
+  const u = Auth.currentUser;
+  if (!u) return false;
+  // Map old perm names to new granular ones
+  const permMap = {
+    'sales':         u.permissions?.sales_view || u.permissions?.sales_add,
+    'sales_add':     u.permissions?.sales_add,
+    'sales_edit':    u.permissions?.sales_edit,
+    'sales_delete':  u.permissions?.sales_delete,
+    'purchases':     u.permissions?.purchases_view || u.permissions?.purchases_add,
+    'purchases_add': u.permissions?.purchases_add,
+    'purchases_edit':u.permissions?.purchases_edit,
+    'materials':     u.permissions?.materials,
+    'products':      u.permissions?.products,
+    'suppliers':     u.permissions?.suppliers,
+    'reports':       u.permissions?.reports,
+    'costs':         u.permissions?.costs,
+    'profit':        u.permissions?.profit,
+    'chat':          u.permissions?.chat,
+    'alerts':        u.permissions?.alerts,
+    'export':        u.permissions?.export,
+  };
+  if (perm in permMap) return !!permMap[perm];
+  return !!u.permissions?.[perm];
+}
+
+function requirePerm(perm, action='هذا الإجراء') {
+  if (canDo(perm)) return true;
+  showToast(`⛔ ليس لديك صلاحية: ${action}`, 'warning');
+  return false;
+}
+
+function getActorName() {
+  return Auth.currentUser?.name || 'غير معروف';
+}
+
 /* ════════════════════════════════════════
    LOGIN / LOGOUT
 ════════════════════════════════════════ */
@@ -2237,6 +2302,7 @@ function updateSalePending() {
 }
 
 async function commitSales() {
+  if (!requirePerm('sales_add', 'تسجيل المبيعات')) return;
   const date = document.getElementById('saleDateInput').value || new Date().toISOString().split('T')[0];
   let anyAdded = false;
   AppData.products.forEach(p=>{
@@ -2256,7 +2322,8 @@ async function commitSales() {
       id: Date.now()+Math.random(),
       date, productId:p.id, productName:p.name,
       qty, price:p.price, total,
-      materialDeductions: deductions
+      materialDeductions: deductions,
+      ...currentUserTag()
     });
   });
   if(!anyAdded){showToast('لم يتم إدخال أي كميات','warning');return;}
@@ -2300,6 +2367,7 @@ async function clearAllSales() {
 }
 
 async function deleteSaleEntry(id) {
+  if (!requirePerm('sales_delete', 'حذف المبيعات')) return;
   confirmAction('حذف السجل','حذف هذا السجل؟','🗑️', async()=>{
     AppData.salesLog = AppData.salesLog.filter(s=>s.id!==id);
     await saveData('salesLog', AppData.salesLog);
@@ -2332,6 +2400,7 @@ function renderSalesLog() {
     const dedStr = (s.materialDeductions||[]).length
       ? (s.materialDeductions||[]).map(d=>`<span class="deduction-badge">-${d.qty.toFixed(2)} ${d.unit||''} ${d.matName}</span>`).join(' ')
       : '<span style="color:var(--text-dim);">—</span>';
+    const actorBadge = s.addedBy ? `<span style="font-size:.65rem;color:var(--text-muted);">👤 ${s.addedBy}${s.editedBy?` ✏️ ${s.editedBy}`:''}</span>` : '';
     return `<tr>
       <td><span class="badge badge-gray">${AppData.salesLog.length-i}</span></td>
       <td>${s.date}</td><td>${s.productName}</td>
@@ -2339,6 +2408,7 @@ function renderSalesLog() {
       <td>${s.price}</td>
       <td style="font-weight:700;color:var(--green);">${s.total.toFixed(2)}</td>
       <td>${dedStr}</td>
+      <td>${actorBadge}</td>
       <td>
         <div class="action-btns">
           <button class="btn btn-warning btn-sm btn-icon" onclick="openEditSaleModal(${s.id})" title="تعديل">✏️</button>
@@ -2896,7 +2966,8 @@ function renderPurchasesTable(){
   rows.forEach(({inv,item})=>{
     const canEdit=Auth.isAdmin()||Auth.currentUser?.permissions?.purchases;
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td><span class="badge badge-red">${inv.id}</span></td>
+    const invActor = inv.addedBy ? `<div style="font-size:.63rem;color:var(--text-muted);">👤 ${inv.addedBy}${inv.editedBy?` ✏️ ${inv.editedBy}`:''}</div>` : '';
+    tr.innerHTML=`<td><span class="badge badge-red">${inv.id}</span>${invActor}</td>
       <td>${inv.supplier}</td>
       <td><span class="badge badge-orange">${item.matId}</span> ${item.matName}</td>
       <td>${item.qty.toLocaleString()}</td><td>${item.price.toFixed(3)}</td>
@@ -2944,6 +3015,7 @@ function editInvoiceFromReport(id) {
 }
 
 async function deleteInvoice(id){
+  if (!requirePerm('purchases_edit', 'حذف الفواتير')) return;
   confirmAction('حذف الفاتورة',`حذف الفاتورة ${id}؟`,'🗑️', async()=>{
     AppData.invoices=AppData.invoices.filter(i=>i.id!==id);
     await saveData('invoices', AppData.invoices);
@@ -2977,6 +3049,9 @@ function calcInvTotal(){
 }
 
 async function saveInvoice(){
+  const perm = editingInvoiceId ? 'purchases_edit' : 'purchases_add';
+  const label = editingInvoiceId ? 'تعديل الفواتير' : 'إضافة فاتورة';
+  if (!requirePerm(perm, label)) return;
   const supplier=document.getElementById('inv-supplier').value;
   const date=document.getElementById('inv-date').value;
   if(!supplier){showToast('يرجى اختيار مورّد','warning');return;}
@@ -2990,11 +3065,11 @@ async function saveInvoice(){
   if(!items.length){showToast('لا توجد بنود','warning');return;}
   if(editingInvoiceId){
     const idx=AppData.invoices.findIndex(i=>i.id===editingInvoiceId);
-    if(idx>=0)AppData.invoices[idx]={id:editingInvoiceId,supplier,date,items,total};
+    if(idx>=0)AppData.invoices[idx]={...AppData.invoices[idx],id:editingInvoiceId,supplier,date,items,total,editedBy:getActorName(),editedAt:new Date().toLocaleDateString('ar')};
     showToast('تم تحديث الفاتورة ✅','success');
   } else {
     const id='INV-'+String(AppData.invoices.length+1).padStart(3,'0');
-    AppData.invoices.push({id,supplier,date,items,total});
+    AppData.invoices.push({id,supplier,date,items,total,...currentUserTag()});
     showToast('تم حفظ الفاتورة ✅','success');
   }
   // احفظ مباشرة على Firebase وانتظر التأكيد
@@ -4007,6 +4082,7 @@ function updateEditSalePrice() {
 }
 
 async function saveEditSale(saleId) {
+  if (!requirePerm('sales_edit', 'تعديل المبيعات')) return;
   const idx = AppData.salesLog.findIndex(s => s.id === saleId);
   if (idx < 0) return;
 
@@ -4043,7 +4119,9 @@ async function saveEditSale(saleId) {
     qty: newQty,
     price: newPrice,
     total: newPrice * newQty,
-    materialDeductions: newDeductions
+    materialDeductions: newDeductions,
+    editedBy: getActorName(),
+    editedAt: new Date().toLocaleDateString('ar')
   };
 
   // أظهر مؤشر الحفظ وانتظر تأكيد Firebase قبل الإغلاق
