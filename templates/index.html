@@ -4270,19 +4270,29 @@ function renderProfitTable(){
     tFixed+=allocFixedPU*soldQty;
 
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${p.id}</td>
-      <td style="font-weight:600;">${p.name}</td>
-      <td>${p.price}</td>
-      <td>${costs.rawMatCost.toFixed(3)}</td>
-      <td>${costs.laborCost.toFixed(3)}</td>
-      <td>${costs.deprecPU.toFixed(3)}</td>
-      <td style="color:var(--blue);">${allocVarPU.toFixed(3)}</td>
-      <td style="color:var(--orange);">${allocFixedPU.toFixed(3)}</td>
-      <td>${totalCostPU.toFixed(3)}</td>
-      <td style="font-weight:700;color:${puBeforeFixed>=0?'var(--green)':'#ff6b6b'};">${puBeforeFixed.toFixed(3)}</td>
-      <td style="font-weight:700;color:${pu>=0?'var(--green)':'#ff6b6b'};">${pu.toFixed(3)}</td>
-      <td>${soldQty}</td>
-      <td style="font-weight:700;color:${tp>=0?'var(--green)':'#ff6b6b'};">${tp.toFixed(2)}</td>`;
+    if(soldQty===0){
+      // لا مبيعات — اعرض الصنف بدون أرقام تكاليف
+      tr.innerHTML=`<td>${p.id}</td>
+        <td style="font-weight:600;">${p.name}</td>
+        <td>${p.price}</td>
+        <td colspan="8" style="text-align:center;color:var(--text-dim);font-size:.75rem;">— لا مبيعات —</td>
+        <td style="font-weight:700;color:var(--text-dim);">0</td>
+        <td style="color:var(--text-dim);">0.00</td>`;
+    } else {
+      tr.innerHTML=`<td>${p.id}</td>
+        <td style="font-weight:600;">${p.name}</td>
+        <td>${p.price}</td>
+        <td>${costs.rawMatCost.toFixed(3)}</td>
+        <td>${costs.laborCost.toFixed(3)}</td>
+        <td>${costs.deprecPU.toFixed(3)}</td>
+        <td style="color:var(--blue);">${allocVarPU.toFixed(3)}</td>
+        <td style="color:var(--orange);">${allocFixedPU.toFixed(3)}</td>
+        <td>${totalCostPU.toFixed(3)}</td>
+        <td style="font-weight:700;color:${puBeforeFixed>=0?'var(--green)':'#ff6b6b'};">${puBeforeFixed.toFixed(3)}</td>
+        <td style="font-weight:700;color:${pu>=0?'var(--green)':'#ff6b6b'};">${pu.toFixed(3)}</td>
+        <td>${soldQty}</td>
+        <td style="font-weight:700;color:${tp>=0?'var(--green)':'#ff6b6b'};">${tp.toFixed(2)}</td>`;
+    }
     tbody.appendChild(tr);
   });
 
