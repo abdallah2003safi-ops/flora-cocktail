@@ -1375,55 +1375,20 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
 <div class="panel" id="panel-chat">
   <div class="page-header"><h1>💬 الدردشة</h1><p>الدردشة العامة والمحادثات الخاصة</p></div>
   <div class="content">
-    <!-- تبويبات -->
-    <div class="tab-bar" style="margin-bottom:1rem;">
-      <button class="tab-btn active" id="chatTabPublic" onclick="switchChatTab('public',this)">🌐 عامة</button>
-      <button class="tab-btn" id="chatTabPrivate" onclick="switchChatTab('private',this)">🔒 خاصة</button>
-    </div>
-
-    <!-- الدردشة العامة -->
-    <div id="chatPanePublic" style="display:block;">
-      <div class="chat-layout">
-        <div class="chat-sidebar">
-          <div class="chat-sidebar-header">👥 المستخدمون</div>
-          <div id="chatUsersList" style="overflow-y:auto;flex:1;"></div>
-        </div>
-        <div class="chat-main">
-          <div class="chat-main-header">
-            <span>💬 الدردشة العامة</span>
-            <span style="font-size:.72rem;color:var(--text-muted);" id="chatOnlineCount"></span>
-          </div>
-          <div class="chat-messages" id="chatMessages"></div>
-          <div class="chat-input-area">
-            <input type="text" class="form-control" id="chatInput" placeholder="اكتب رسالة للجميع..." onkeydown="if(event.key==='Enter')sendChatMessage()">
-            <button class="btn btn-primary btn-sm" onclick="sendChatMessage()">إرسال</button>
-          </div>
-        </div>
+    <div class="chat-layout">
+      <div class="chat-sidebar">
+        <div class="chat-sidebar-header">👥 المستخدمون</div>
+        <div id="chatUsersList" style="overflow-y:auto;flex:1;"></div>
       </div>
-    </div>
-
-    <!-- الدردشة الخاصة -->
-    <div id="chatPanePrivate" style="display:none;">
-      <div class="chat-layout">
-        <!-- قائمة المحادثات -->
-        <div class="chat-sidebar">
-          <div class="chat-sidebar-header">💬 المحادثات</div>
-          <div id="dmUsersList" style="overflow-y:auto;flex:1;"></div>
+      <div class="chat-main">
+        <div class="chat-main-header">
+          <span>💬 الدردشة العامة</span>
+          <span style="font-size:.72rem;color:var(--text-muted);" id="chatOnlineCount"></span>
         </div>
-        <!-- نافذة المحادثة -->
-        <div class="chat-main" id="dmChatMain">
-          <div class="chat-main-header" id="dmChatHeader">
-            <span style="color:var(--text-muted);font-size:.82rem;">اختر محادثة من القائمة</span>
-          </div>
-          <div class="chat-messages" id="dmMessages" style="flex:1;overflow-y:auto;padding:1rem;display:flex;flex-direction:column;gap:.65rem;">
-            <div style="text-align:center;color:var(--text-dim);padding:3rem 1rem;font-size:.82rem;">
-              👈 اختر مستخدماً لبدء محادثة خاصة
-            </div>
-          </div>
-          <div class="chat-input-area" id="dmInputArea" style="display:none;">
-            <input type="text" class="form-control" id="dmInput" placeholder="رسالة خاصة..." onkeydown="if(event.key==='Enter')sendDM()">
-            <button class="btn btn-primary btn-sm" onclick="sendDM()">إرسال</button>
-          </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input-area">
+          <input type="text" class="form-control" id="chatInput" placeholder="اكتب رسالة..." onkeydown="if(event.key==='Enter')sendChatMessage()">
+          <button class="btn btn-primary btn-sm" onclick="sendChatMessage()">إرسال</button>
         </div>
       </div>
     </div>
@@ -2060,6 +2025,32 @@ function getAllocatedFixedForProduct(pId, soldQty) {
 ════════════════════════════════════════ */
 
 
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function sendChatNotification(senderName, text) {
+  if (!Auth.currentUser) return;
+  if (document.visibilityState === 'visible') return; // المستخدم شايف الشاشة — ما ارسل
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+  const notif = new Notification('💬 رسالة جديدة — فلورا كوكتيل', {
+    body: `${senderName}: ${text}`,
+    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="%23C8102E"/><text y=".9em" x="50%" text-anchor="middle" font-size="60" dy=".1em">🌹</text></svg>',
+    badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="%23C8102E"/></svg>',
+    tag: 'flora-chat',
+    renotify: true,
+  });
+  notif.onclick = () => {
+    window.focus();
+    showPanel('chat', null);
+    notif.close();
+  };
+  setTimeout(() => notif.close(), 6000);
+}
+
 function startSession(user) {
   Auth.currentUser = user;
   document.getElementById('loginScreen').style.display = 'none';
@@ -2077,6 +2068,7 @@ function startSession(user) {
   startAutoSaveSync();
   showMobileNav();
   resetInactivityTimer();
+  requestNotificationPermission();
   showToast('مرحباً ' + user.name + '! 🌹', 'success');
 }
 
@@ -2570,6 +2562,18 @@ async function fullSync() {
   if (currentPanel === 'profit') renderProfitTable();
   if (currentPanel === 'alerts') renderAlerts();
   if (currentPanel === 'chat') { renderChatUsersList(); renderChatMessages(); }
+  // إشعار بالرسائل الجديدة
+  if (currentPanel !== 'chat' || document.visibilityState !== 'visible') {
+    const prevCount = window._lastChatCount || 0;
+    const newCount = AppData.chatMessages.filter(m=>!m.isDM).length;
+    if (newCount > prevCount && prevCount > 0) {
+      const lastMsg = AppData.chatMessages.filter(m=>!m.isDM).slice(-1)[0];
+      if (lastMsg && lastMsg.userId !== Auth.currentUser?.id) {
+        sendChatNotification(lastMsg.userName, lastMsg.text);
+      }
+    }
+    window._lastChatCount = newCount;
+  }
   if (currentPanel === 'costs') renderCosts();
   if (currentPanel === 'users') renderUsersList();
 }
