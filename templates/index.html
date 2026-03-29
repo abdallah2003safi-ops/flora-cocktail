@@ -1277,7 +1277,7 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
       <div class="card"><div class="card-header"><h3>التكاليف غير المباشرة</h3></div><div class="card-body">
         <div class="form-grid">
           <div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;"><div class="section-title" style="margin-bottom:0;">المتغيرة</div><button class="btn btn-primary btn-sm perm-costs" onclick="openAddIndirectModal('var')">+ إضافة</button></div>
-          <div class="table-wrap"><table><thead><tr><th>الرقم</th><th>الاسم</th><th>التكلفة/وحدة ₪</th><th>إجراء</th></tr></thead><tbody id="indirectVarTable"></tbody></table></div></div>
+          <div class="table-wrap"><table><thead><tr><th>الرقم</th><th>الاسم</th><th>القيمة الإجمالية ₪</th><th>تُوزَّع على</th><th>إجراء</th></tr></thead><tbody id="indirectVarTable"></tbody></table></div></div>
           <div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;"><div class="section-title" style="margin-bottom:0;">الثابتة</div><button class="btn btn-primary btn-sm perm-costs" onclick="openAddIndirectModal('fixed')">+ إضافة</button></div>
           <div class="table-wrap"><table><thead><tr><th>الرقم</th><th>الاسم</th><th>القيمة ₪</th><th>إجراء</th></tr></thead><tbody id="indirectFixedTable"></tbody></table></div></div>
         </div>
@@ -1322,7 +1322,7 @@ tbody tr:hover td{background:rgba(200,16,46,0.06);}
         </div>
       </div>
       <div class="table-wrap"><table>
-        <thead><tr><th>رقم</th><th>الصنف</th><th>السعر ₪</th><th>مواد خام ₪</th><th>أجور ₪</th><th>إهلاك ₪</th><th>تكاليف ثابتة مخصصة ₪</th><th>إجمالي التكلفة ₪</th><th>ربح/وحدة ₪</th><th>المباع</th><th>إجمالي الربح ₪</th></tr></thead>
+        <thead><tr><th>رقم</th><th>الصنف</th><th>السعر ₪</th><th>مواد خام ₪</th><th>أجور ₪</th><th>إهلاك ₪</th><th>متغيرة غير مباشرة ₪</th><th>ثابتة مخصصة ₪</th><th>إجمالي التكلفة ₪</th><th>ربح/وحدة ₪</th><th>المباع</th><th>إجمالي الربح ₪</th></tr></thead>
         <tbody id="profitTable"></tbody>
       </table></div>
     </div>
@@ -3435,9 +3435,11 @@ async function saveProductDef(id){
 
 function renderDefMaterials(){
   document.getElementById('defMaterialsTable').innerHTML=`<div class="table-wrap"><table>
-    <thead><tr><th>الرقم</th><th>الاسم</th><th>الوحدة</th><th>رصيد الافتتاح</th><th>المخزون الحالي</th><th>حد التنبيه</th><th>متوسط التكلفة ₪</th><th>إجراء</th></tr></thead>
-    <tbody>${AppData.materials.map(m=>{const avg=getWeightedAvg(m.id);const stock=calcMaterialStock(m.id);return`<tr>
-      <td><span class="badge badge-red">${m.id}</span></td><td>${m.name}</td><td>${m.unit}</td>
+    <thead><tr><th>الرقم</th><th>الاسم</th><th>النوع</th><th>الوحدة</th><th>رصيد الافتتاح</th><th>المخزون الحالي</th><th>حد التنبيه</th><th>متوسط التكلفة ₪</th><th>إجراء</th></tr></thead>
+    <tbody>${AppData.materials.map(m=>{const avg=getWeightedAvg(m.id);const stock=calcMaterialStock(m.id);const isDir=!m.matType||m.matType==='direct';return`<tr>
+      <td><span class="badge badge-red">${m.id}</span></td><td>${m.name}</td>
+      <td><span class="badge ${isDir?'badge-green':'badge-orange'}">${isDir?'✅ مباشرة':'📦 غير مباشرة'}</span></td>
+      <td>${m.unit}</td>
       <td>${(m.openingQty||0).toLocaleString()}</td>
       <td style="font-weight:700;color:${stock<0?'#fca5a5':'var(--green)'};">${stock.toLocaleString()}</td>
       <td>${m.minStock}</td><td>${avg.toFixed(3)}</td>
@@ -3475,6 +3477,25 @@ function openDefModal(type){
   document.getElementById('def-modal-title').textContent=title;
   if(type==='material'){
     document.getElementById('def-modal-body').innerHTML=`
+      <div class="form-group">
+        <label>نوع المادة</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:.85rem 1rem;border:2px solid var(--border);border-radius:12px;cursor:pointer;transition:all .2s;" id="mat-type-direct-lbl">
+            <input type="radio" name="mat-type" id="mat-type-direct" value="direct" checked style="margin-top:3px;accent-color:var(--green);">
+            <div>
+              <div style="font-weight:700;font-size:.85rem;color:var(--green);">✅ مباشرة</div>
+              <div style="font-size:.72rem;color:var(--text-muted);margin-top:2px;">تدخل مباشرة في المنتج وتُحدد في وصفة كل صنف<br><em style="color:var(--green);">مثال: فاكهة، حليب، سكر</em></div>
+            </div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:.85rem 1rem;border:2px solid var(--border);border-radius:12px;cursor:pointer;transition:all .2s;" id="mat-type-indirect-lbl">
+            <input type="radio" name="mat-type" id="mat-type-indirect" value="indirect" style="margin-top:3px;accent-color:var(--orange);">
+            <div>
+              <div style="font-weight:700;font-size:.85rem;color:var(--orange);">📦 غير مباشرة</div>
+              <div style="font-size:.72rem;color:var(--text-muted);margin-top:2px;">تُستخدم بالإنتاج عموماً وتُوزَّع على الأصناف<br><em style="color:var(--orange);">مثال: أكياس، قفازات، مناديل</em></div>
+            </div>
+          </label>
+        </div>
+      </div>
       <div class="form-grid">
         <div class="form-group"><label>الرقم</label><input type="text" class="form-control" id="new-mat-id" placeholder="مثال: A3"></div>
         <div class="form-group"><label>الاسم</label><input type="text" class="form-control" id="new-mat-name"></div>
@@ -3545,7 +3566,14 @@ async function saveNewMaterial(){
   const name=document.getElementById('new-mat-name').value.trim();
   if(!id||!name){showToast('يرجى ملء الحقول','warning');return;}
   if(AppData.materials.find(m=>m.id===id)){showToast('الرقم موجود','warning');return;}
-  AppData.materials.push({id,name,unit:document.getElementById('new-mat-unit').value||'كيلو',openingQty:parseFloat(document.getElementById('new-mat-opening').value)||0,minStock:parseInt(document.getElementById('new-mat-min').value)||100});
+  const matType = document.querySelector('input[name="mat-type"]:checked')?.value || 'direct';
+  AppData.materials.push({
+    id, name,
+    unit: document.getElementById('new-mat-unit').value||'كيلو',
+    openingQty: parseFloat(document.getElementById('new-mat-opening').value)||0,
+    minStock: parseInt(document.getElementById('new-mat-min').value)||100,
+    matType // 'direct' أو 'indirect'
+  });
   await saveData('materials', AppData.materials);
   showToast('تمت الإضافة ✅','success');closeModal('defModal');renderDefMaterials();
 }
@@ -3570,7 +3598,16 @@ function switchCostTab(tab,btn){
 
 function renderCosts(){
   document.getElementById('directCostsTable').innerHTML=AppData.directMaterials.map((c,i)=>`<tr><td><span class="badge badge-red">${c.id}</span></td><td>${c.name}</td><td><span class="ct-direct-var">${c.type}</span></td><td>${c.openingBalance}</td><td>${c.openingQty}</td><td><div class="action-btns"><button class="btn btn-ghost btn-sm btn-icon perm-costs" onclick="editDirectCost(${i})">✏️</button><button class="btn btn-danger btn-sm btn-icon perm-costs" onclick="deleteDirectCost(${i})">🗑️</button></div></td></tr>`).join('');
-  document.getElementById('indirectVarTable').innerHTML=AppData.indirectVar.map((c,i)=>`<tr><td><span class="badge badge-gray">${c.id}</span></td><td>${c.name}</td><td>${c.unitCost.toFixed(2)}</td><td><div class="action-btns"><button class="btn btn-ghost btn-sm btn-icon perm-costs" onclick="editIndirectItem('var',${i})">✏️</button><button class="btn btn-danger btn-sm btn-icon perm-costs" onclick="deleteIndirectItem('var',${i})">🗑️</button></div></td></tr>`).join('');
+  document.getElementById('indirectVarTable').innerHTML=AppData.indirectVar.map((c,i)=>`<tr>
+  <td><span class="badge badge-gray">${c.id}</span></td>
+  <td>${c.name}</td>
+  <td>${(c.totalValue||c.unitCost||0).toFixed(2)}</td>
+  <td><span class="badge badge-blue">${c.group||'الكل'}</span></td>
+  <td><div class="action-btns">
+    <button class="btn btn-ghost btn-sm btn-icon perm-costs" onclick="editIndirectItem('var',${i})">✏️</button>
+    <button class="btn btn-danger btn-sm btn-icon perm-costs" onclick="deleteIndirectItem('var',${i})">🗑️</button>
+  </div></td>
+</tr>`).join('');
   const totalFixed=AppData.indirectFixed.reduce((s,c)=>s+c.value,0);
   document.getElementById('indirectFixedTable').innerHTML=AppData.indirectFixed.map((c,i)=>`<tr><td><span class="badge badge-orange">${c.id}</span></td><td>${c.name}</td><td style="font-weight:700;">${c.value.toFixed(2)}</td><td><div class="action-btns"><button class="btn btn-ghost btn-sm btn-icon perm-costs" onclick="editIndirectItem('fixed',${i})">✏️</button><button class="btn btn-danger btn-sm btn-icon perm-costs" onclick="deleteIndirectItem('fixed',${i})">🗑️</button></div></td></tr>`).join('')
     +`<tr style="font-weight:700;background:rgba(245,158,11,0.06);"><td colspan="2">الإجمالي</td><td colspan="2" style="color:var(--orange);">${totalFixed.toFixed(2)} ₪</td></tr>`;
@@ -3593,13 +3630,43 @@ async function updateDirectCost(i){AppData.directMaterials[i].name=document.getE
 
 async function deleteDirectCost(i){confirmAction('حذف','حذف هذا العنصر؟','🗑️',async()=>{AppData.directMaterials.splice(i,1);await saveData('directMaterials',AppData.directMaterials);renderCosts();showToast('تم الحذف','success');});}
 
-function openAddIndirectModal(type){const isVar=type==='var';openCostModal(isVar?'إضافة تكلفة متغيرة':'إضافة تكلفة ثابتة',`<div class="form-group"><label>الرقم</label><input type="text" class="form-control" id="ci-id"></div><div class="form-group"><label>الاسم</label><input type="text" class="form-control" id="ci-name"></div><div class="form-group"><label>${isVar?'التكلفة/وحدة ₪':'القيمة ₪'}</label><input type="number" class="form-control" id="ci-val" step="0.01" value="0"></div><div style="display:flex;gap:.75rem;margin-top:1rem;justify-content:flex-end;"><button class="btn btn-ghost" onclick="closeModal('costItemModal')">إلغاء</button><button class="btn btn-primary" onclick="saveIndirectItem('${type}')">💾 إضافة</button></div>`);}
+function openAddIndirectModal(type){
+  const isVar=type==='var';
+  const cats=['كوكتيل','مشروبات باردة','مشروبات ميلك شيك','مشروبات ساخنة','بوظة','كريب','كيك فلورا وحلويات أخرى','الكل'];
+  const catSelect = isVar ? `<div class="form-group"><label>تُوزَّع على فئة</label><select class="form-control" id="ci-group">${cats.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div>` : '';
+  openCostModal(isVar?'إضافة تكلفة متغيرة':'إضافة تكلفة ثابتة',`<div class="form-group"><label>الرقم</label><input type="text" class="form-control" id="ci-id"></div><div class="form-group"><label>الاسم</label><input type="text" class="form-control" id="ci-name"></div><div class="form-group"><label>${isVar?'القيمة الإجمالية للتكلفة ₪':'القيمة ₪'}</label><input type="number" class="form-control" id="ci-val" step="0.01" value="0"></div>${catSelect}<div style="display:flex;gap:.75rem;margin-top:1rem;justify-content:flex-end;"><button class="btn btn-ghost" onclick="closeModal('costItemModal')">إلغاء</button><button class="btn btn-primary" onclick="saveIndirectItem('${type}')">💾 إضافة</button></div>`);
+}
 
-async function saveIndirectItem(type){const id=document.getElementById('ci-id').value.trim(),name=document.getElementById('ci-name').value.trim(),val=parseFloat(document.getElementById('ci-val').value)||0;if(!id||!name){showToast('يرجى ملء الحقول','warning');return;}if(type==='var')AppData.indirectVar.push({id,name,unitCost:val});else AppData.indirectFixed.push({id,name,value:val});const key=type==='var'?'indirectVar':'indirectFixed';await saveData(key,type==='var'?AppData.indirectVar:AppData.indirectFixed);closeModal('costItemModal');renderCosts();showToast('تمت الإضافة ✅','success');}
+async function saveIndirectItem(type){
+  const id=document.getElementById('ci-id').value.trim(),name=document.getElementById('ci-name').value.trim(),val=parseFloat(document.getElementById('ci-val').value)||0;
+  if(!id||!name){showToast('يرجى ملء الحقول','warning');return;}
+  if(type==='var'){
+    const group=document.getElementById('ci-group')?.value||'الكل';
+    AppData.indirectVar.push({id,name,totalValue:val,unitCost:val,group});
+  } else {
+    AppData.indirectFixed.push({id,name,value:val});
+  }
+  const key=type==='var'?'indirectVar':'indirectFixed';
+  await saveData(key,type==='var'?AppData.indirectVar:AppData.indirectFixed);
+  closeModal('costItemModal');renderCosts();showToast('تمت الإضافة ✅','success');
+}
 
-function editIndirectItem(type,i){const arr=type==='var'?AppData.indirectVar:AppData.indirectFixed,c=arr[i];openCostModal('تعديل',`<div class="form-group"><label>الاسم</label><input type="text" class="form-control" id="ci-name" value="${c.name}"></div><div class="form-group"><label>${type==='var'?'التكلفة/وحدة ₪':'القيمة ₪'}</label><input type="number" class="form-control" id="ci-val" step="0.01" value="${type==='var'?c.unitCost:c.value}"></div><div style="display:flex;gap:.75rem;margin-top:1rem;justify-content:flex-end;"><button class="btn btn-ghost" onclick="closeModal('costItemModal')">إلغاء</button><button class="btn btn-primary" onclick="updateIndirectItem('${type}',${i})">💾 حفظ</button></div>`);}
+function editIndirectItem(type,i){
+  const arr=type==='var'?AppData.indirectVar:AppData.indirectFixed,c=arr[i];
+  const cats=['كوكتيل','مشروبات باردة','مشروبات ميلك شيك','مشروبات ساخنة','بوظة','كريب','كيك فلورا وحلويات أخرى','الكل'];
+  const catSelect = type==='var' ? `<div class="form-group"><label>تُوزَّع على فئة</label><select class="form-control" id="ci-group">${cats.map(ct=>`<option value="${ct}" ${ct===(c.group||'الكل')?'selected':''}>${ct}</option>`).join('')}</select></div>` : '';
+  openCostModal('تعديل',`<div class="form-group"><label>الاسم</label><input type="text" class="form-control" id="ci-name" value="${c.name}"></div><div class="form-group"><label>${type==='var'?'القيمة الإجمالية ₪':'القيمة ₪'}</label><input type="number" class="form-control" id="ci-val" step="0.01" value="${type==='var'?(c.totalValue||c.unitCost||0):c.value}"></div>${catSelect}<div style="display:flex;gap:.75rem;margin-top:1rem;justify-content:flex-end;"><button class="btn btn-ghost" onclick="closeModal('costItemModal')">إلغاء</button><button class="btn btn-primary" onclick="updateIndirectItem('${type}',${i})">💾 حفظ</button></div>`);
+}
 
-async function updateIndirectItem(type,i){const arr=type==='var'?AppData.indirectVar:AppData.indirectFixed;arr[i].name=document.getElementById('ci-name').value;const val=parseFloat(document.getElementById('ci-val').value)||0;if(type==='var')arr[i].unitCost=val;else arr[i].value=val;await saveData(type==='var'?'indirectVar':'indirectFixed',arr);closeModal('costItemModal');renderCosts();showToast('تم التحديث ✅','success');}
+async function updateIndirectItem(type,i){
+  const arr=type==='var'?AppData.indirectVar:AppData.indirectFixed;
+  arr[i].name=document.getElementById('ci-name').value;
+  const val=parseFloat(document.getElementById('ci-val').value)||0;
+  if(type==='var'){arr[i].totalValue=val;arr[i].unitCost=val;arr[i].group=document.getElementById('ci-group')?.value||'الكل';}
+  else arr[i].value=val;
+  await saveData(type==='var'?'indirectVar':'indirectFixed',arr);
+  closeModal('costItemModal');renderCosts();showToast('تم التحديث ✅','success');
+}
 
 async function deleteIndirectItem(type,i){confirmAction('حذف','حذف هذا العنصر؟','🗑️',async()=>{if(type==='var')AppData.indirectVar.splice(i,1);else AppData.indirectFixed.splice(i,1);await saveData(type==='var'?'indirectVar':'indirectFixed',type==='var'?AppData.indirectVar:AppData.indirectFixed);renderCosts();showToast('تم الحذف','success');});}
 
@@ -3753,7 +3820,10 @@ function renderProfitTable(){
       allocFixedPU=((pRev/totalRev)*totalFixed)/soldQty;
     }
 
-    const totalCostPU=costs.totalCostExFixed+allocFixedPU;
+    // Allocate indirect variable costs by group
+    const allocVarPU = calcIndirectVarForProduct(p.id, p.cat, soldQty);
+
+    const totalCostPU=costs.totalCostExFixed+allocFixedPU+allocVarPU;
     const pu=p.price-totalCostPU;
 
     if(filter==='profit'&&pu<0)return;
@@ -3772,6 +3842,7 @@ function renderProfitTable(){
       <td>${costs.rawMatCost.toFixed(3)}</td>
       <td>${costs.laborCost.toFixed(3)}</td>
       <td>${costs.deprecPU.toFixed(3)}</td>
+      <td style="color:var(--blue);">${allocVarPU.toFixed(3)}</td>
       <td style="color:var(--orange);">${allocFixedPU.toFixed(3)}</td>
       <td>${totalCostPU.toFixed(3)}</td>
       <td style="font-weight:700;color:${pu>=0?'var(--green)':'#ff6b6b'};">${pu.toFixed(3)}</td>
