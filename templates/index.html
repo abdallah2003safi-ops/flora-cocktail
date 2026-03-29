@@ -2471,16 +2471,41 @@ function openEditUserModal(id){
   openModal('userModal');
 }
 function buildUserForm(u){
-  const permsHtml = PERMISSIONS.map(p=>`
-    <label class="perm-check"><input type="checkbox" id="uperm-${p}" ${!u||u.permissions[p]?'checked':''}>
-    ${{purchases:'مشتريات',suppliers:'موردون',materials:'مواد خام',products:'أصناف',costs:'تكاليف',profit:'تقرير الربح',chat:'دردشة',sales:'مبيعات'}[p]}</label>`).join('');
+  const LABELS = {
+    sales_view:'👁 عرض المبيعات', sales_add:'➕ تسجيل مبيعات', sales_edit:'✏️ تعديل مبيعات', sales_delete:'🗑 حذف مبيعات',
+    purchases_view:'👁 عرض المشتريات', purchases_add:'➕ إضافة فاتورة', purchases_edit:'✏️ تعديل فاتورة',
+    materials:'📦 مواد خام', products:'🧃 أصناف', suppliers:'🏭 موردون',
+    reports:'📊 تقارير', costs:'💰 تكاليف', profit:'📈 تقرير الربح',
+    chat:'💬 دردشة', alerts:'🔔 تنبيهات', export:'🖨 طباعة',
+    purchases:'🛒 مشتريات', sales:'🧾 مبيعات'
+  };
+  const GROUPS = [
+    {label:'📋 المبيعات', perms:['sales_view','sales_add','sales_edit','sales_delete']},
+    {label:'🛒 المشتريات', perms:['purchases_view','purchases_add','purchases_edit']},
+    {label:'📦 البيانات', perms:['materials','products','suppliers']},
+    {label:'📊 المالية', perms:['reports','costs','profit','export']},
+    {label:'🔔 الأخرى', perms:['chat','alerts']},
+  ];
+  // Only include perms that exist in PERMISSIONS array
+  const validPerms = PERMISSIONS.filter(p => LABELS[p]);
+  const permsHtml = GROUPS.map(g => {
+    const groupPerms = g.perms.filter(p => PERMISSIONS.includes(p));
+    if(!groupPerms.length) return '';
+    return `<div style="margin-bottom:.6rem;">
+      <div style="font-size:.65rem;font-weight:800;color:var(--text-dim);margin-bottom:.25rem;">${g.label}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.3rem;">
+        ${groupPerms.map(p=>`<label class="perm-check"><input type="checkbox" id="uperm-${p}" ${!u||u.permissions?.[p]?'checked':''}> ${LABELS[p]||p}</label>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+
   return `<div class="form-grid">
     <div class="form-group"><label>الاسم</label><input type="text" class="form-control" id="u-name" value="${u?u.name:''}"></div>
     <div class="form-group"><label>اسم المستخدم</label><input type="text" class="form-control" id="u-username" value="${u?u.username:''}" ${u?'readonly style="opacity:.5"':''}></div>
   </div>
   ${!u?`<div class="form-group"><label>كلمة المرور</label><input type="password" class="form-control" id="u-password"></div>`:''}
   <div class="section-title">الصلاحيات</div>
-  <div class="perm-grid" style="margin-bottom:1rem;">${permsHtml}</div>
+  <div style="margin-bottom:1rem;">${permsHtml}</div>
   <div style="display:flex;gap:.75rem;justify-content:flex-end;">
     <button class="btn btn-ghost" onclick="closeModal('userModal')">إلغاء</button>
     <button class="btn btn-primary" onclick="${u?`saveEditUser('${u.id}')`:'saveNewUser()'}">💾 حفظ</button>
